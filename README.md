@@ -71,7 +71,7 @@ Animations: Framer Motion
 
 ⚙️ Installation
 # Clone the repository
-git clone https://github.com/your-username/real-estate-frontend.git
+git clone https://github.com/uniksrj/EstateHub.git
 cd real-estate-frontend
 
 # Install dependencies
