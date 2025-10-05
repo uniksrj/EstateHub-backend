@@ -21,7 +21,11 @@ class UserPreference extends Model
         'bedrooms',
         'bathrooms', 
         'move_in_timeline',
-        'newsletter'
+        'newsletter',
+        'selling_timeline',
+        'property_address',
+        'license_number',
+        'agency_name'
     ];
 
     /**
@@ -30,7 +34,7 @@ class UserPreference extends Model
     protected $casts = [
         'min_budget' => 'decimal:2',
         'max_budget' => 'decimal:2',
-        'newsletter' => 'boolean',
+        'newsletter' => 'boolean',        
     ];
 
     /**

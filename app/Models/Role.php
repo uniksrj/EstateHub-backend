@@ -45,5 +45,13 @@ class Role extends Model
         }
         return false;
     }
+
+    public static function findByName($name){
+        if(is_string($name)){
+            return self::where('name', $name)->value('id');
+        }
+        return null;
+        
+    }
     
 }

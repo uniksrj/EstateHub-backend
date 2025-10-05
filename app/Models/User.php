@@ -112,4 +112,20 @@ class User extends Authenticatable
     {
         return $this->hasOne(UserPreference::class);
     }
+
+    public function activitys(){
+        return $this->hasMany(UserActivity::class);
+    }
+
+    public function recentActivities($limit = 10){
+        return $this->activitys()
+        ->with(['property', 'inquiry'])
+        ->latest()
+        ->limit($limit)
+        ->get();
+    }
+
+    public function propertyViews() {
+        return $this->hasMany(PropertyView::class);
+    }
 }
