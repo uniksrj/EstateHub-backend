@@ -21,7 +21,7 @@ Login, Register, Forgot Password flows
 
 Different dashboards for Admin, Agent, Buyer, Seller, Investor, Renter
 
-Protected routes with react-router-dom
+Protected routes with react-router
 
 🏠 Property Management
 
