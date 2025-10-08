@@ -50,8 +50,13 @@ class Role extends Model
         if(is_string($name)){
             return self::where('name', $name)->value('id');
         }
-        return null;
-        
+        return null;        
+    }
+
+    public static function findByUserType($user){
+        if($user){
+            return self::where('id', $user)->value('id');
+        }
     }
     
 }

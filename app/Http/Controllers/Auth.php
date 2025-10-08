@@ -2,88 +2,130 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPreference;
+use App\Services\UserMetricsService;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth as FacadesAuth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class Auth extends Controller
 {
-    public function __construct() {}
+    private $preferenceFields = [
+        'buyer' => ['preferred_location', 'min_budget', 'max_budget', 'property_type', 'bedrooms', 'bathrooms', 'move_in_timeline', 'newsletter'],
+        'investor' => ['preferred_location', 'min_budget', 'max_budget', 'property_type', 'bedrooms', 'bathrooms', 'move_in_timeline', 'newsletter'],
+        'renter' => ['preferred_location', 'min_budget', 'max_budget', 'property_type', 'bedrooms', 'bathrooms', 'move_in_timeline', 'newsletter'],
+        'seller' => ['property_address', 'selling_timeline', 'newsletter'],
+        'agent' => ['license_number', 'agency_name', 'newsletter'],
+        'broker' => ['license_number', 'agency_name', 'newsletter'],
+    ];
+    public function __construct(Request $request)
+    {
+        if (!$request->user()) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+    }
 
     public function index()
     {
         return response()->json(['message' => 'Auth controller']);
     }
 
-    public function register(Request $request)
+    public function validate_fields($request)
     {
-        $validatedData = $request->validate([
-            // Basic Info
+        $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'phone' => 'required|string|max:20',
-
-            // Preferences
-            'user_type' => 'required|in:buyer,seller,investor,renter,agent,other',
-            'preferred_location' => 'nullable|string|max:255',
-            'min_budget' => 'nullable|numeric|min:0',
-            'max_budget' => 'nullable|numeric|min:0',
-            'property_type' => 'nullable|in:house,apartment,condo,townhouse,villa,commercial,land,any',
-            'bedrooms' => 'nullable|integer|min:1|max:10',
-            'bathrooms' => 'nullable|integer|min:1|max:10',
-            'move_in_timeline' => 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible',
+            'user_type' => 'required|in:buyer,seller,investor,renter,agent,broker',
             'newsletter' => 'boolean',
             'terms' => 'required|accepted',
-        ]);
+            'phone' => 'required|string|max:20',
+        ];
 
-        // Start database transaction
+        // Add dynamic rules based on user_type
+        if ($request->user_type === 'agent' || $request->user_type === 'broker') {
+            $rules['license_number'] = 'required|string|max:50';
+            $rules['agency_name'] = 'nullable|string|max:255';
+        }
+
+        if ($request->user_type === 'buyer' || $request->user_type === 'investor' || $request->user_type === 'renter') {
+            $rules['min_budget'] = 'nullable|numeric|min:0';
+            $rules['max_budget'] = 'nullable|numeric|min:0';
+            $rules['preferred_location'] = 'nullable|string|max:255';
+            $rules['min_budget'] = 'nullable|numeric|min:0';
+            $rules['max_budget'] = 'nullable|numeric|min:0';
+            $rules['property_type'] = 'nullable|in:house,apartment,condo,townhouse,villa,commercial,land,any';
+            $rules['bedrooms'] = 'nullable|integer|min:1|max:10';
+            $rules['bathrooms'] = 'nullable|integer|min:1|max:10';
+            $rules['move_in_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
+        }
+
+        if ($request->user_type === 'seller') {
+            $rules['selling_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
+            $rules['property_address'] = 'nullable|string|max:255';
+        }
+        $validatedData = $request->validate($rules);
+
+        return $validatedData;
+    }
+
+    public function register(Request $request)
+    {
+
         DB::beginTransaction();
 
         try {
+            $validatedData = $this->validate_fields($request);
+            $role_id = Role::findByName($validatedData['user_type']);
+            if (!$role_id) {
+                throw ValidationException::withMessages(['user_type' => 'Invalid user type']);
+            }
+
             // Create user
             $user = User::create([
                 'name' => $validatedData['name'],
                 'email' => $validatedData['email'],
-                'password' => Hash::make($validatedData['password']), // More secure than bcrypt()
+                'password' => Hash::make($validatedData['password']),
                 'phone' => $validatedData['phone'],
-                'role' => $validatedData['user_type'],
+                'role_id' => $role_id,
                 'is_active' => true,
+                'last_login_at' => now(),
             ]);
 
             // Create user preferences
-            $user->preferences()->create([
-                'preferred_location' => $validatedData['preferred_location'],
-                'min_budget' => $validatedData['min_budget'],
-                'max_budget' => $validatedData['max_budget'],
-                'property_type' => $validatedData['property_type'],
-                'bedrooms' => $validatedData['bedrooms'],
-                'bathrooms' => $validatedData['bathrooms'],
-                'move_in_timeline' => $validatedData['move_in_timeline'],
-                'newsletter' => $validatedData['newsletter'] ?? false,
-            ]);
+            $fieldsToSave = $this->preferenceFields[$validatedData['user_type']] ?? [];
+            $preferencesData = array_filter(
+                $validatedData,
+                fn($key) => in_array($key, $fieldsToSave),
+                ARRAY_FILTER_USE_KEY
+            );
+            $user->preferences()->create($preferencesData);
 
             DB::commit();
 
-            // Login user
-            auth()->login($user);
             $token = $user->createToken(
                 'auth-token',
                 ['*'],
                 now()->addWeek()
             )->plainTextToken;
+            auth()->login($user, $request->remember ?? false);
+            // FacadesAuth::login();
+            $request->session()->regenerate();
             return response()->json([
-                'message' => 'Registration successful',
                 'user' => $user->load('preferences'),
-                'success' => true,
-                'token' => $token
-            ], 201);
+                'message' => 'Login successful',
+                'success' => true
+            ])->header('Access-Control-Allow-Credentials', 'true')
+                ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -117,8 +159,9 @@ class Auth extends Controller
 
         // Sanctum v4 token creation
         $token = $user->createToken('auth-token', ['*'])->plainTextToken;
-        FacadesAuth::login($user, $request->remember ?? false);
+        auth()->login($user, $request->remember ?? false);
         $request->session()->regenerate();
+        User::where('id', $user->id)->update(['last_login_at' => now()]);
         $cookie = cookie(
             'auth_token',
             $token,
@@ -135,7 +178,7 @@ class Auth extends Controller
             'message' => 'Login successful',
             'success' => true
         ])->header('Access-Control-Allow-Credentials', 'true')
-          ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
+            ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
     }
 
     public function logout(Request $request)
@@ -154,9 +197,7 @@ class Auth extends Controller
 
     public function user(Request $request)
     {
-        return response()->json([
-            'user' => $request->user()->load('preferences')
-        ]);
+        return response()->json($request->user()->load('preferences'));
     }
 
     public function change_password(Request $request)
@@ -180,4 +221,230 @@ class Auth extends Controller
             'success' => true
         ]);
     }
+
+    public function user_metrics(Request $request)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $metricsService = new UserMetricsService();
+
+        return response()->json([
+            'roles' => $metricsService->getUserRolesDistribution(),
+            'metrics' => $metricsService->getAllMetrics(),
+            'charts' => [
+                'monthly_growth' => $metricsService->getMonthlyUserGrowth(12),
+                'cumulative_growth' => $metricsService->getCummulativeMonthlyGrowth(12),
+                'retention_rates' => $metricsService->getWeeklyRetentionData(),
+            ],
+            'user_list' => User::with('role')
+                ->where('id', '!=', auth()->id())
+                ->orderBy('created_at', 'desc')
+                ->get()
+            // ->paginate(5),
+        ]);
+    }
+
+    public function total_users_metrics(Request $request)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $metricsService = new UserMetricsService();
+        return response()->json($metricsService->getTotalUsersWithChange());
+    }
+
+    public function conversion_metrics(Request $request)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden'], 403);
+        }
+
+        $metricsService = new UserMetricsService();
+        return response()->json($metricsService->getConversionRateWithChange());
+    }
+
+    /**
+     *Super Admin Functions
+     */
+
+    public function show(Request $request, $id)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $user = User::with('role', 'preferences')->findOrFail($id);
+        return response()->json($user);
+    }
+
+    public function update(Request $request, $id)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $user = User::findOrFail($id);
+
+        $rules = [
+            'name' => 'sometimes|required|string|max:255',
+            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
+            'password' => ['sometimes', 'confirmed', Rules\Password::defaults()],
+            'user_type' => 'sometimes|required|in:buyer,seller,investor,renter,agent,broker',
+            'newsletter' => 'sometimes|boolean',
+            'phone' => 'sometimes|required|string|max:20',
+        ];
+
+        // Add dynamic rules based on user_type
+        if ($request->has('user_type')) {
+            if ($request->user_type === 'agent' || $request->user_type === 'broker') {
+                $rules['license_number'] = 'required|string|max:50';
+                $rules['agency_name'] = 'nullable|string|max:255';
+            }
+
+            if ($request->user_type === 'buyer' || $request->user_type === 'investor' || $request->user_type === 'renter') {
+                $rules['min_budget'] = 'nullable|numeric|min:0';
+                $rules['max_budget'] = 'nullable|numeric|min:0';
+                $rules['preferred_location'] = 'nullable|string|max:255';
+                $rules['min_budget'] = 'nullable|numeric|min:0';
+                $rules['max_budget'] = 'nullable|numeric|min:0';
+                $rules['property_type'] = 'nullable|in:house,apartment,condo,townhouse,villa,commercial,land,any';
+                $rules['bedrooms'] = 'nullable|integer|min:1|max:10';
+                $rules['bathrooms'] = 'nullable|integer|min:1|max:10';
+                $rules['move_in_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
+            }
+
+            if ($request->user_type === 'seller') {
+                $rules['selling_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
+                $rules['property_address'] = 'nullable|string|max:255';
+            }
+        }
+        $validatedData = $request->validate($rules);
+        if (isset($validatedData['user_type'])) {
+            $role_id = Role::findByName($validatedData['user_type']);
+            if (!$role_id) {
+                return response()->json(['message' => 'Invalid user type'], 422);
+            }
+            $user->role_id = $role_id;
+        }
+        if (isset($validatedData['name'])) {
+            $user->name = $validatedData['name'];
+        }
+        if (isset($validatedData['email'])) {
+            $user->email = $validatedData['email'];
+        }
+        if (isset($validatedData['password'])) {
+            $user->password = Hash::make($validatedData['password']);
+        }
+        if (isset($validatedData['phone'])) {
+            $user->phone = $validatedData['phone'];
+        }
+        $user->save();
+        // Update user preferences
+        $fieldsToSave = $this->preferenceFields[$validatedData['user_type']] ?? [];
+        $preferencesData = array_filter(
+            $validatedData,
+            fn($key) => in_array($key, $fieldsToSave),
+            ARRAY_FILTER_USE_KEY
+        );
+        if (!empty($preferencesData)) {
+            if ($user->preferences) {
+                $user->preferences()->update($preferencesData);
+            } else {
+                $user->preferences()->create($preferencesData);
+            }
+        }
+        return response()->json([
+            'message' => 'User updated successfully',
+            'user' => $user->load('preferences', 'role')
+        ]);
+    }
+
+    public function store(Request $request)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+        $rules = [
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'phone' => 'required|digits_between:10,12|unique:users', // Ensures only digits and length
+            'role_id' => 'required',
+            'is_active' => 'required'
+        ];
+        $validatedData =  $request->validate($rules);
+        $role_id = Role::findByUserType($validatedData['role_id']);
+        if (!$role_id) {
+            return response()->json(['message' => 'Invalid user type'], 422);
+        }
+
+        // Create user
+        $user = User::create([
+            'name' => $validatedData['name'],
+            'email' => $validatedData['email'],
+            'password' => Hash::make(Str::random(16)),
+            'phone' => $validatedData['phone'],
+            'role_id' => $role_id,
+            'is_active' => $validatedData['is_active'],
+        ]);
+
+        $status = Password::sendResetLink(['email' => $user->email]);
+        if ($status === Password::RESET_LINK_SENT) {
+            event(new Registered($user));
+            return response()->json([
+                'message' => 'User created successfully. A password reset link has been sent to their email.',
+                'user' => $user->load('preferences', 'role')
+            ], 201);
+        }
+
+        return response()->json([
+            'message' => 'User created but failed to send password reset link.'
+        ], 500);
+    }
+
+    public function userStatusChange(Request $request, $id)
+    {
+
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $user = User::findOrFail($id);
+
+        $validated = $request->validate([
+            'status' => 'required|in:0,1,3,4',
+        ]);
+
+        $user->update(['is_active' => $validated['status']]);
+
+        return response()->json([
+            'message' => $validated['status'] == 1 ? 'User activated successfully' : 'User deactivated successfully',
+            'user' => $user->load('role')
+        ]);
+    }
+
+    public function deleteUser(Request $request, $id)
+    {
+        if (!in_array($request->user()->role_id, [1, 2])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $user = User::findOrFail($id);
+
+        if ($user->id === $request->user()->id) {
+            return response()->json(['message' => 'You cannot delete your own account'], 400);
+        }
+        $user->delete();
+
+        return response()->json(['message' => 'User deleted successfully']);
+    }
+
+    public function viewPAge(){
+        return view('view.random_password');
+    }
+    /**
+     *Super Admin Functions End
+     */
 }

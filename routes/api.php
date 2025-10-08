@@ -11,6 +11,7 @@ Route::post('/auth/login', [Auth::class, 'login']);
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [Auth::class, 'logout']);
     Route::get('/auth/user', [Auth::class, 'user']);
+    Route::get('/auth/user_metrics', [Auth::class, 'user_metrics']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -23,6 +24,34 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('properties/{id}', [Property_controller::class, 'delete_property']);
     Route::post('/properties/toggle-favorite', [Common_setup::class, 'toggleFavorite']);
 });
+
+Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    
+    // User Management Routes
+    Route::prefix('users')->group(function () {
+        // Get all users with pagination/filters
+        Route::get('/', [Auth::class, 'index']);
+        
+        // Get specific user by ID
+        Route::get('/{id}', [Auth::class, 'show']);
+        
+        // Create new user
+        Route::post('/', [Auth::class, 'store']);
+        
+        // Update user
+        Route::put('/{id}', [Auth::class, 'update']);
+        
+        // Delete user
+        Route::delete('/{id}', [Auth::class, 'deleteUser']);
+        
+        // Change user status (activate/deactivate)
+        Route::patch('/{id}/status', [Auth::class, 'userStatusChange']);
+    });
+    
+});
+
+Route::get('/reset-password/{token}', [Auth::class, 'viewPAge'])
+    ->name('password.reset');
 
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);

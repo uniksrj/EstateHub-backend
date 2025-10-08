@@ -333,7 +333,7 @@ class UserMetricsService
     public function getWeeklyRetentionData()
     {
         $retRate = [];
-        $periods =  [1, 2, 3, 4, 5, 8, 12];
+        $periods =  [1, 2, 3, 4, 5, 6, 7];
 
         foreach ($periods as $w) {
             $userCount = $this->getWeeklyCohort($w);
@@ -365,8 +365,8 @@ class UserMetricsService
             3 => ['retained' => 78, 'churned' => 22],
             4 => ['retained' => 72, 'churned' => 28],
             5 => ['retained' => 72, 'churned' => 28],
-            8 => ['retained' => 65, 'churned' => 35],
-            12 => ['retained' => 58, 'churned' => 42]
+            6 => ['retained' => 72, 'churned' => 28],
+            7 => ['retained' => 72, 'churned' => 28],           
         ];
 
         return [
@@ -377,5 +377,45 @@ class UserMetricsService
             'total_users' => 0,
             'is_demo' => true 
         ];
+    }
+
+    public function getUserRolesDistribution()
+    {
+        $roles = [
+            2 => 'Admin',
+            3 => 'Agent',
+            4 => 'Broker',
+            5 => 'Buyer',
+            6 => 'Seller',
+            7 => 'Investor',
+            8 => 'Renter'
+        ];
+
+        $distribution = [];
+        foreach ($roles as $roleId => $roleName) {
+            $count = User::where('role_id', $roleId)->count();
+            $distribution[] = [
+                'role' => $roleName,
+                'count' => $count,
+                'color' => $this->getRoleColor($roleName)
+            ];
+        }
+
+        return $distribution;
+    }
+
+    private function getRoleColor($roleName)
+    {
+        $colors = [
+            'Admin' => '#ef4444',
+            'Agent' => '#3b82f6',
+            'Broker' => '#f59e0b',
+            'Seller' => '#10b981',
+            'Buyer' => '#0434d1ff',
+            'Renter' => '#fe369aff',
+            'Investor' => '#8b5cf6'
+        ];
+
+        return $colors[$roleName] ?? '#6b7280';
     }
 }
