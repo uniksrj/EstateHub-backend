@@ -289,41 +289,15 @@ class Auth extends Controller
         $user = User::findOrFail($id);
 
         $rules = [
-            'name' => 'sometimes|required|string|max:255',
-            'email' => 'sometimes|required|string|email|max:255|unique:users,email,' . $user->id,
-            'password' => ['sometimes', 'confirmed', Rules\Password::defaults()],
-            'user_type' => 'sometimes|required|in:buyer,seller,investor,renter,agent,broker',
-            'newsletter' => 'sometimes|boolean',
-            'phone' => 'sometimes|required|string|max:20',
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'phone' => 'required|digits_between:10,12|unique:users', 
+            'role_id' => 'required',
+            'is_active' => 'required'
         ];
-
-        // Add dynamic rules based on user_type
-        if ($request->has('user_type')) {
-            if ($request->user_type === 'agent' || $request->user_type === 'broker') {
-                $rules['license_number'] = 'required|string|max:50';
-                $rules['agency_name'] = 'nullable|string|max:255';
-            }
-
-            if ($request->user_type === 'buyer' || $request->user_type === 'investor' || $request->user_type === 'renter') {
-                $rules['min_budget'] = 'nullable|numeric|min:0';
-                $rules['max_budget'] = 'nullable|numeric|min:0';
-                $rules['preferred_location'] = 'nullable|string|max:255';
-                $rules['min_budget'] = 'nullable|numeric|min:0';
-                $rules['max_budget'] = 'nullable|numeric|min:0';
-                $rules['property_type'] = 'nullable|in:house,apartment,condo,townhouse,villa,commercial,land,any';
-                $rules['bedrooms'] = 'nullable|integer|min:1|max:10';
-                $rules['bathrooms'] = 'nullable|integer|min:1|max:10';
-                $rules['move_in_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
-            }
-
-            if ($request->user_type === 'seller') {
-                $rules['selling_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
-                $rules['property_address'] = 'nullable|string|max:255';
-            }
-        }
-        $validatedData = $request->validate($rules);
-        if (isset($validatedData['user_type'])) {
-            $role_id = Role::findByName($validatedData['user_type']);
+        $validatedData =  $request->validate($rules);
+        if (isset($validatedData['role_id'])) {
+            $role_id = Role::findByUserType($validatedData['role_id']);
             if (!$role_id) {
                 return response()->json(['message' => 'Invalid user type'], 422);
             }
@@ -335,30 +309,12 @@ class Auth extends Controller
         if (isset($validatedData['email'])) {
             $user->email = $validatedData['email'];
         }
-        if (isset($validatedData['password'])) {
-            $user->password = Hash::make($validatedData['password']);
-        }
         if (isset($validatedData['phone'])) {
             $user->phone = $validatedData['phone'];
         }
-        $user->save();
-        // Update user preferences
-        $fieldsToSave = $this->preferenceFields[$validatedData['user_type']] ?? [];
-        $preferencesData = array_filter(
-            $validatedData,
-            fn($key) => in_array($key, $fieldsToSave),
-            ARRAY_FILTER_USE_KEY
-        );
-        if (!empty($preferencesData)) {
-            if ($user->preferences) {
-                $user->preferences()->update($preferencesData);
-            } else {
-                $user->preferences()->create($preferencesData);
-            }
-        }
+        $user->save();        
         return response()->json([
             'message' => 'User updated successfully',
-            'user' => $user->load('preferences', 'role')
         ]);
     }
 
