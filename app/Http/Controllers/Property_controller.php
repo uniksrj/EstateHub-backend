@@ -2,8 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Inquiry;
 use App\Models\Property;
 use App\Models\PropertyImage;
+use App\Models\PropertyOffer;
+use App\Models\PropertyView;
+use App\Services\PropertyAnalyticsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +16,10 @@ use function Pest\Laravel\get;
 
 class Property_controller extends Controller
 {
-    public function __construct() {}
+    protected PropertyAnalyticsService $proprtyService;
+    public function __construct(PropertyAnalyticsService $proprtyService) {
+        $this->proprtyService = $proprtyService;
+    }
 
     public function index()
     {
@@ -195,8 +202,12 @@ class Property_controller extends Controller
         }
     }
 
-    public function delete_property($id)
+    public function delete_property(Request $request, $id)
     {
+         if (!in_array($request->user()->role_id, [1, 2, 6])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
         DB::beginTransaction();
         try {
             $property = Property::find($id);
@@ -243,7 +254,7 @@ class Property_controller extends Controller
 
     private function getMetricsDetails()
     {
-         $counts = Property::selectRaw('
+        $counts = Property::selectRaw('
             COUNT(*) as total_properties,
             SUM(CASE WHEN status = "for_sale" THEN 1 ELSE 0 END) as active_listings,
             SUM(CASE WHEN sold_at IS NOT NULL THEN 1 ELSE 0 END) as sold_properties,
@@ -272,7 +283,7 @@ class Property_controller extends Controller
         // Calculations
         $averagePrice = $counts->total_properties > 0 ? $counts->total_value / $counts->total_properties : 0;
         $occupancyRate = $counts->total_properties > 0 ? ($counts->sold_properties / $counts->total_properties) * 100 : 0;
-        
+
         // Growth calculations
         $propertiesGrowth = $this->calculateGrowth($counts->total_properties, $propertiesLastMonth);
         $salesGrowth = $this->calculateGrowth($currentMonthSales, $lastMonthSales);
@@ -293,7 +304,7 @@ class Property_controller extends Controller
 
     private function getChartData()
     {
-         $propertyTypes = Property::select('property_type', DB::raw('COUNT(*) as count'))
+        $propertyTypes = Property::select('property_type', DB::raw('COUNT(*) as count'))
             ->groupBy('property_type')
             ->get()
             ->map(function ($item) {
@@ -352,11 +363,11 @@ class Property_controller extends Controller
         ];
     }
 
-     private function getPerformanceMetrics()
+    private function getPerformanceMetrics()
     {
         // Calculate actual performance metrics from database
         $soldProperties = Property::whereNotNull('sold_at')->get();
-        
+
         // Days on Market calculation
         $avgDaysOnMarket = 45; // Default
         if ($soldProperties->count() > 0) {
@@ -428,4 +439,173 @@ class Property_controller extends Controller
         ];
         return $colors[$type] ?? '#6B7280';
     }
+
+    public function trackView(Request $request, $property_id)
+    {
+        $property = Property::findOrFail($property_id);
+
+        $recentview = PropertyView::where('property_id', $property_id)
+            ->where('session_id', session()->getid())
+            ->where('viewed_at','>=', now()->subMinutes(30))
+            ->exists();
+
+        if (!$recentview) {
+            PropertyView::create([
+                'property_id' => $property_id,
+                'user_id' => auth()->id(),
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+                'session_id' => session()->getId(),
+                'view_source' => $request->input('view_source', 'direct'),
+            ]);
+            // $property->increment('view_count');
+        }
+        return response()->json(['success' => true]);
+    }
+
+    public function getPropertyViews($propertyId)
+    {
+        $views = PropertyView::where('property_id', $propertyId)
+            ->selectRaw('COUNT(*) as total_views')
+            ->selectRaw('COUNT(DISTINCT user_id) as unique_users')
+            ->selectRaw('COUNT(DISTINCT ip_address) as unique_ips')
+            ->first();
+
+        $dailyViews = PropertyView::where('property_id', $propertyId)
+            ->where('created_at', '>=', now()->subDays(30))
+            ->selectRaw('DATE(created_at) as date, COUNT(*) as views')
+            ->groupBy('date')
+            ->orderBy('date', 'desc')
+            ->get();
+
+        return response()->json([
+            'total_views' => $views->total_views,
+            'unique_users' => $views->unique_users,
+            'unique_ips' => $views->unique_ips,
+            'daily_views' => $dailyViews
+        ]);
+    }
+
+    public function get_property_list_by_userID(Request $request)
+    {
+        if (!in_array($request->user()->role_id, [1, 2, 6])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        // Get properties with all related data and analytics
+        $propertyList = Property::with([
+            'property_views',
+            'images',
+            'inquiries',
+            'offers'
+        ])
+            ->where('agent_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->paginate(10);
+
+        // Enhance each property with calculated analytics
+        $enhancedProperties = $propertyList->getCollection()->map(function ($property) {
+            return $this->proprtyService->enhancePropertyWithAnalytics($property);
+        });
+
+        // Replace the collection with enhanced data
+        $propertyList->setCollection($enhancedProperties);
+
+        return response()->json([
+            'status' => 1,
+            'data' => $propertyList
+        ]);
+    }
+
+     /**
+     * Get single property with detailed analytics
+     */
+    public function getPropertyWithAnalytics($id)
+    {
+        $property = Property::with(['property_views', 'images', 'inquiries', 'offers'])
+            ->findOrFail($id);
+
+        $enhancedProperty = $this->proprtyService->enhancePropertyWithAnalytics($property);
+
+        return response()->json([
+            'status' => 1,
+            'data' => $enhancedProperty
+        ]);
+    }
+
+    /**
+     * Get dashboard overview
+     */
+    public function getDashboardOverview(Request $request)
+    {
+        $properties = Property::with(['property_views', 'inquiries', 'offers'])
+            ->where('agent_id', auth()->id())
+            ->get();
+
+        $summary = $this->proprtyService->getDashboardSummary($properties);
+
+        return response()->json([
+            'status' => 1,
+            'data' => $summary
+        ]);
+    }
+
+    public function getDashboardData(Request $request)
+    {
+        $sellerId = auth()->id();
+        
+        // Get seller's properties with counts
+        $properties = Property::where('agent_id', $sellerId)
+            ->withCount(['property_views', 'inquiries', 'offers'])
+            ->get();
+
+        // Calculate overview metrics
+        $totalListings = $properties->count();
+        $activeListings = $properties->where('status', 'for_sale')->count();
+        $totalViews = $properties->sum('property_views_count');
+        
+        $pendingOffers = PropertyOffer::whereHas('property', function($query) use ($sellerId) {
+            $query->where('agent_id', $sellerId);
+        })->where('status', 'pending')->count();
+
+        // Recent activity (last 7 days views)
+        $recentActivity = PropertyView::whereHas('property', function($query) use ($sellerId) {
+            $query->where('agent_id', $sellerId);
+        })
+        ->with('property')
+        ->select('property_id', DB::raw('COUNT(*) as view_count'), DB::raw('MAX(viewed_at) as last_viewed'))
+        ->where('viewed_at', '>=', now()->subDays(7))
+        ->groupBy('property_id')
+        ->orderBy('last_viewed', 'desc')
+        ->limit(5)
+        ->get()
+        ->map(function($view) {
+             $carbon = new \Carbon\Carbon($view->last_viewed);
+            return [
+                'property_title' => $view->property->title,
+                'view_count' => $view->view_count,
+                'last_viewed' => $carbon->diffForHumans(),
+            ];
+        });
+
+        // Performance data for charts
+        $performanceData = $this->proprtyService->getPerformanceData($sellerId);
+
+        return response()->json([
+            'overview' => [
+                'totalListings' => $totalListings,
+                'activeListings' => $activeListings,
+                'totalViews' => $totalViews,
+                'pendingOffers' => $pendingOffers,
+                'unreadMessages' => 0, // Implement if you have messaging
+                'totalInquiries' => $properties->sum('inquiries_count'),
+                'soldProperties' => $properties->where('status', 'sold')->count(),
+            ],
+            'recentActivity' => $recentActivity,
+            'performance' => $performanceData,
+            'topPerforming' => $this->proprtyService->getTopPerformingProperties($sellerId),
+            'recentInquiries' => $this->proprtyService->getRecentInquiries($sellerId)
+        ]);
+    }   
+   
 }

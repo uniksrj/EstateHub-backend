@@ -4,21 +4,45 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Property extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-         'title', 'description', 'price', 'property_type', 'status', 'featured',
-        'address', 'city', 'state', 'zip_code', 'country', 'latitude', 'longitude',
-        'bedrooms', 'bathrooms', 'sq_ft', 'lot_size', 'year_built', 'garage',
-        'has_pool', 'has_garden', 'has_garage', 'has_parking', 
-        'has_security', 'has_air_conditioning', 'has_heating', 'agent_id'
+        'title',
+        'description',
+        'price',
+        'property_type',
+        'status',
+        'featured',
+        'address',
+        'city',
+        'state',
+        'zip_code',
+        'country',
+        'latitude',
+        'longitude',
+        'bedrooms',
+        'bathrooms',
+        'sq_ft',
+        'lot_size',
+        'year_built',
+        'garage',
+        'has_pool',
+        'has_garden',
+        'has_garage',
+        'has_parking',
+        'has_security',
+        'has_air_conditioning',
+        'has_heating',
+        'agent_id'
     ];
 
     protected $casts = [
-         'price' => 'decimal:2',
+        'price' => 'decimal:2',
         'featured' => 'boolean',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
@@ -34,54 +58,203 @@ class Property extends Model
         'has_heating' => 'boolean',
     ];
 
-    public function agent(){
+    public function agent()
+    {
         return $this->belongsTo(User::class, 'agent_id');
     }
 
-    public function images(){
+    public function images()
+    {
         return $this->hasMany(PropertyImage::class);
-    }
+    }    
 
-    public function inquiries(){
-        return $this->hasMany(Inquiry::class);
-    }   
-
-    public function favorites() {
+    public function favorites()
+    {
         return $this->hasMany(Favorite::class);
     }
 
-    public function getPrimaryImageAttribute() {
-        return $this->images()->where('is_primary', true)->first() 
+    public function getPrimaryImageAttribute()
+    {
+        return $this->images()->where('is_primary', true)->first()
             ?? $this->images()->first();
     }
-    
-    public function scopeActive($query){
+
+    public function scopeActive($query)
+    {
         return $query->where('status', 'available');
     }
 
-    public function scopeFeatured($query){
+    public function scopeFeatured($query)
+    {
         return $query->where('featured', true);
     }
 
-    public function scopeWithFilters($query , $filters){
+    public function scopeWithFilters($query, $filters)
+    {
         return $query->when($filters['min_price'] ?? false, fn($q, $min) => $q->where('price', '>=', $min))
-                     ->when($filters['max_price'] ?? false, fn($q, $max) => $q->where('price', '<=', $max))
-                     ->when($filters['search'] ?? false, fn($q, $search) => $q->where('title', 'like', "%$search%"))
-                     ->when($filters['property_type'] ?? false, fn($q, $type) => $q->where('property_type', $type))
-                     ->when($filters['bedrooms'] ?? false, fn($q, $beds) => $q->where('bedrooms', '>=', $beds))
-                     ->when($filters['bathrooms'] ?? false, fn($q, $baths) => $q->where('bathrooms', '>=', $baths))
-                     ->when($filters['location'] ?? false, function ($q, $search) {
-                        $q->where(function ($q) use ($search) {
-                                $q->where('city', 'like', "%{$search}%")
-                                ->orWhere('state', 'like', "%{$search}%")
-                                ->orWhere('zip_code', 'like', "%{$search}%")
-                                ->orWhere('country', 'like', "%{$search}%");
-                        });
-                    });
-                     
-                    //  ->when($filters['city'] ?? false, fn($q, $city) => $q->where('city', 'like', "%$city%"))
-                    //  ->when($filters['state'] ?? false, fn($q, $state) => $q->where('state', 'like', "%$state%"))
-                    //  ->when($filters['zip_code'] ?? false, fn($q, $zip) => $q->where('zip_code', 'like', "%$zip%"))
-                    //  ->when($filters['country'] ?? false, fn($q, $country) => $q->where('country', 'like', "%$country%"));
+            ->when($filters['max_price'] ?? false, fn($q, $max) => $q->where('price', '<=', $max))
+            ->when($filters['search'] ?? false, fn($q, $search) => $q->where('title', 'like', "%$search%"))
+            ->when($filters['property_type'] ?? false, fn($q, $type) => $q->where('property_type', $type))
+            ->when($filters['bedrooms'] ?? false, fn($q, $beds) => $q->where('bedrooms', '>=', $beds))
+            ->when($filters['bathrooms'] ?? false, fn($q, $baths) => $q->where('bathrooms', '>=', $baths))
+            ->when($filters['location'] ?? false, function ($q, $search) {
+                $q->where(function ($q) use ($search) {
+                    $q->where('city', 'like', "%{$search}%")
+                        ->orWhere('state', 'like', "%{$search}%")
+                        ->orWhere('zip_code', 'like', "%{$search}%")
+                        ->orWhere('country', 'like', "%{$search}%");
+                });
+            });
+
+        //  ->when($filters['city'] ?? false, fn($q, $city) => $q->where('city', 'like', "%$city%"))
+        //  ->when($filters['state'] ?? false, fn($q, $state) => $q->where('state', 'like', "%$state%"))
+        //  ->when($filters['zip_code'] ?? false, fn($q, $zip) => $q->where('zip_code', 'like', "%$zip%"))
+        //  ->when($filters['country'] ?? false, fn($q, $country) => $q->where('country', 'like', "%$country%"));
+    }
+
+    public function getViewsCountAttribute()
+    {
+        return $this->view_count; // From the cached count
+    }
+
+    public function getRecentViewsAttribute()
+    {
+        return $this->views()
+            ->where('created_at', '>=', now()->subDays(7))
+            ->count();
+    }
+
+    /**
+     * Get all offers for this property
+     */
+    public function offers(): HasMany
+    {
+        return $this->hasMany(PropertyOffer::class);
+    }
+
+    /**
+     * Get pending offers
+     */
+    public function pendingOffers(): HasMany
+    {
+        return $this->offers()->where('status', 'pending');
+    }
+
+    /**
+     * Get accepted offers
+     */
+    public function acceptedOffers(): HasMany
+    {
+        return $this->offers()->where('status', 'accepted');
+    }
+
+    /**
+     * Get the highest offer
+     */
+    public function highestOffer()
+    {
+        return $this->offers()
+            ->where('status', '!=', 'rejected')
+            ->orderBy('offer_amount', 'desc')
+            ->first();
+    }
+
+    /**
+     * Check if property has pending offers
+     */
+    public function hasPendingOffers(): bool
+    {
+        return $this->offers()->where('status', 'pending')->exists();
+    }
+
+    /**
+     * Check if property has accepted offer
+     */
+    public function hasAcceptedOffer(): bool
+    {
+        return $this->offers()->where('status', 'accepted')->exists();
+    }
+
+    public function property_views(): HasMany
+    {
+        return $this->hasMany(PropertyView::class);
+    }
+
+    /**
+     * Get today's views
+     */
+    public function todaysViews(): HasMany
+    {
+        return $this->property_views()->today();
+    }
+
+    /**
+     * Get unique viewers count
+     */
+    public function getUniqueViewersCountAttribute(): int
+    {
+        return $this->property_views()
+            ->select('ip_address')
+            ->distinct()
+            ->count('ip_address');
+    }
+
+    /**
+     * Get average view duration
+     */
+    public function getAverageViewDurationAttribute(): float
+    {
+        return $this->property_views()->avg('view_duration') ?? 0;
+    }
+
+    /**
+     * Get views by source
+     */
+    public function getViewsBySource()
+    {
+        return $this->property_views()
+            ->selectRaw('view_source, COUNT(*) as count')
+            ->groupBy('view_source')
+            ->get()
+            ->pluck('count', 'view_source');
+    }
+
+    /**
+     * Increment view count and record view
+     */
+    public function recordView($userId = null, $source = 'direct', $duration = 0): PropertyView
+    {
+        // Update the cached view_count for quick access
+        $this->increment('view_count');
+        return PropertyView::recordView($this->id, $userId, $source, $duration);
+    }
+
+      public function inquiries(): HasMany
+    {
+        return $this->hasMany(Inquiry::class);
+    }
+
+    /**
+     * Get new/pending inquiries
+     */
+    public function pendingInquiries(): HasMany
+    {
+        return $this->inquiries()->pending();
+    }
+
+    /**
+     * Get inquiry count
+     */
+    public function getInquiriesCountAttribute(): int
+    {
+        return $this->inquiries()->count();
+    }
+
+    /**
+     * Get new inquiries count
+     */
+    public function getNewInquiriesCountAttribute(): int
+    {
+        return $this->inquiries()->new()->count();
     }
 }

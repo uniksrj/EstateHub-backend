@@ -27,6 +27,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('properties/{id}', [Property_controller::class, 'update_property']);
     Route::delete('properties/{id}', [Property_controller::class, 'delete_property']);
     Route::post('/properties/toggle-favorite', [Common_setup::class, 'toggleFavorite']);
+    Route::get('/propertiesList', [Property_controller::class, 'get_property_list_by_userID']);
+    Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
@@ -91,5 +93,6 @@ Route::post('/reset-password', function (Request $request) {
         : response()->json(['message' => __($status)], 400);
 })->name('password.update');
 
+Route::post('/properties/{id}', [Property_controller::class, 'trackView']);
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
