@@ -127,7 +127,7 @@ class Property_controller extends Controller
 
     public function get_all_properties(Request $request)
     {
-        $properties = Property::with(['agent', 'images'])
+        $properties = Property::with(['agent', 'images','favorites'])
             ->withFilters($request->all())
             ->orderBy('created_at', 'desc')
             ->paginate(6);
