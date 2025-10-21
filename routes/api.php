@@ -29,6 +29,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/properties/toggle-favorite', [Common_setup::class, 'toggleFavorite']);
     Route::get('/propertiesList', [Property_controller::class, 'get_property_list_by_userID']);
     Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
+    Route::post('/user/store-inquiry', [Common_setup::class, 'store_buyer_inquiry']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
