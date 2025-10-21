@@ -66,7 +66,7 @@ class Property extends Model
     public function images()
     {
         return $this->hasMany(PropertyImage::class);
-    }    
+    }
 
     public function favorites()
     {
@@ -89,7 +89,7 @@ class Property extends Model
         return $query->where('featured', true);
     }
 
-    public function scopeWithFilters($query, $filters)
+    public function scopeWithFilters($query, $filters, $user)
     {
         return $query->when($filters['min_price'] ?? false, fn($q, $min) => $q->where('price', '>=', $min))
             ->when($filters['max_price'] ?? false, fn($q, $max) => $q->where('price', '<=', $max))
@@ -97,6 +97,11 @@ class Property extends Model
             ->when($filters['property_type'] ?? false, fn($q, $type) => $q->where('property_type', $type))
             ->when($filters['bedrooms'] ?? false, fn($q, $beds) => $q->where('bedrooms', '>=', $beds))
             ->when($filters['bathrooms'] ?? false, fn($q, $baths) => $q->where('bathrooms', '>=', $baths))
+            ->when($filters['isUserFavorite'] ?? false, function ($q) use ($user) {
+                $q->whereHas('favorites', function ($subQuery) use ($user) {
+                    $subQuery->where('user_id', $user->id);
+                });
+            })
             ->when($filters['location'] ?? false, function ($q, $search) {
                 $q->where(function ($q) use ($search) {
                     $q->where('city', 'like', "%{$search}%")
@@ -106,7 +111,7 @@ class Property extends Model
                 });
             });
 
-        //  ->when($filters['city'] ?? false, fn($q, $city) => $q->where('city', 'like', "%$city%"))
+
         //  ->when($filters['state'] ?? false, fn($q, $state) => $q->where('state', 'like', "%$state%"))
         //  ->when($filters['zip_code'] ?? false, fn($q, $zip) => $q->where('zip_code', 'like', "%$zip%"))
         //  ->when($filters['country'] ?? false, fn($q, $country) => $q->where('country', 'like', "%$country%"));
@@ -229,7 +234,7 @@ class Property extends Model
         return PropertyView::recordView($this->id, $userId, $source, $duration);
     }
 
-      public function inquiries(): HasMany
+    public function inquiries(): HasMany
     {
         return $this->hasMany(Inquiry::class);
     }

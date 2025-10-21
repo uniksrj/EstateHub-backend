@@ -127,8 +127,9 @@ class Property_controller extends Controller
 
     public function get_all_properties(Request $request)
     {
+         $user = auth()->user();
         $properties = Property::with(['agent', 'images','favorites'])
-            ->withFilters($request->all())
+            ->withFilters($request->all(), $user)
             ->orderBy('created_at', 'desc')
             ->paginate(6);
         return response()->json($properties);
