@@ -1,4 +1,4 @@
-🏡 Real Estate Platform – Frontend
+🏡 Real Estate Platform
 
 This is the frontend application for the Real Estate Platform, built with React + Vite + TailwindCSS.
 It provides a modern, responsive UI for multiple user roles including Admin, Agents, Buyers, Sellers, Investors, and Renters.
