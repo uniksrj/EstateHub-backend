@@ -8,6 +8,7 @@ use App\Models\PropertyView;
 use App\Models\Inquiry;
 use App\Models\PropertyOffer;
 use Carbon\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 
 class PropertyAnalyticsService
@@ -273,6 +274,7 @@ class PropertyAnalyticsService
 
     public function getRecentInquiries($sellerId)
     {
+        
         return Inquiry::whereHas('property', function($query) use ($sellerId) {
             $query->where('agent_id', $sellerId);
         })
@@ -283,9 +285,9 @@ class PropertyAnalyticsService
         ->map(function($inquiry) {
             return [
                 'id' => $inquiry->id,
-                'property_title' => $inquiry->property->title,
-                'user_name' => $inquiry->user->name,
-                'message' => str_limit($inquiry->message, 50),
+                'property_title' =>  optional($inquiry->property)->title,
+                'user_name' => $inquiry->user?->name ??  $inquiry->name,
+                'message' => Str::limit($inquiry->message, 50),
                 'status' => $inquiry->status,
                 'created_at' => $inquiry->created_at->diffForHumans()
             ];

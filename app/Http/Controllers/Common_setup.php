@@ -26,7 +26,7 @@ class Common_setup extends Controller
         $favorite = Favorite::where([
             'user_id' => $user->id,
             'property_id' => $propertyId
-        ])->first();        
+        ])->first();
         if ($favorite) {
             $favorite =  $favorite->toArray();
             Favorite::where('id', $favorite['id'])->delete();
@@ -37,35 +37,32 @@ class Common_setup extends Controller
                 'property_id' => $propertyId
             ]);
             $isFavorite = true;
-        }        
+        }
         return response()->json(['is_favorite' => $isFavorite]);
     }
 
     /* Store Inquiry*/
-    
-    public function store_buyer_inquiry(Request $request){
-        echo "<pre>";
-        print_r($request->all());
-        echo "</pre>";
 
-         DB::beginTransaction();
+    public function store_buyer_inquiry(Request $request)
+    {
+
+        DB::beginTransaction();
         try {
-            // Logic to add a property
             $validatedData = $request->validate([
                 'name' => 'required|string|max:50',
                 'email' => 'required|string|max:50',
-                'phone' => 'required|numeric|max:12',
+                'phone' => 'required|numeric|digits_between:10,14',
                 'message' => 'required|string',
                 'timeline' => 'required|string',
                 'budget_min' => 'required|numeric',
                 'budget_max' => 'required|numeric',
-                
+                'property_id' => 'required|numeric',
             ]);
 
             $property = Inquiry::create([
                 ...$validatedData,
-                'user_id ' => auth()->id(),
-                'source  ' => 'website',
+                'user_id' => auth()->id(),
+                'source' => 'website',
                 'featured' => $request->boolean('featured', false),
                 'status' => 'new'
             ]);
