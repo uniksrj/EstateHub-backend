@@ -82,4 +82,9 @@ class Common_setup extends Controller
             ], 500);
         }
     }
+
+    public function list_inquiries_by_user(){
+        print_r(auth()->user());
+        echo json_encode(["msg" => "YOu are here"] );
+    }
 }

@@ -30,6 +30,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/propertiesList', [Property_controller::class, 'get_property_list_by_userID']);
     Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
     Route::post('/user/store-inquiry', [Common_setup::class, 'store_buyer_inquiry']);
+    Route::get('/inquiries', [Common_setup::class, 'list_inquiries_by_user']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
