@@ -31,6 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
     Route::post('/user/store-inquiry', [Common_setup::class, 'store_buyer_inquiry']);
     Route::get('/inquiries', [Common_setup::class, 'list_inquiries_by_user']);
+    Route::get('/inquiries/{inquiryId}', [Common_setup::class, 'getInquiry']);
+    Route::post('/inquiries/{inquiryId}/respond', [Common_setup::class, 'addResponse']);
+    Route::post('/inquiries/{inquiryId}/mark-read', [Common_setup::class, 'markAsRead']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
