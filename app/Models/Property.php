@@ -262,4 +262,9 @@ class Property extends Model
     {
         return $this->inquiries()->new()->count();
     }
+
+    // public function inquiries_responses(): HasMany
+    // {
+    //     return $this->hasMany::class);
+    // }
 }

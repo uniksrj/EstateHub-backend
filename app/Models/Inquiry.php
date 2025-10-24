@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Inquiry extends Model
 {
-    
+
     protected $table = 'inquiries';
 
     protected $fillable = [
@@ -133,7 +134,7 @@ class Inquiry extends Model
     public function scopeNeedsFollowUp($query)
     {
         return $query->whereIn('status', [self::STATUS_NEW, self::STATUS_CONTACTED])
-                    ->where('created_at', '<=', now()->subDays(2));
+            ->where('created_at', '<=', now()->subDays(2));
     }
 
     /**
@@ -284,17 +285,58 @@ class Inquiry extends Model
     public static function getStatusCounts($sellerId = null)
     {
         $query = self::query();
-        
+
         if ($sellerId) {
-            $query->whereHas('property', function($q) use ($sellerId) {
+            $query->whereHas('property', function ($q) use ($sellerId) {
                 $q->where('agent_id', $sellerId);
             });
         }
 
         return $query->selectRaw('status, COUNT(*) as count')
-                    ->groupBy('status')
-                    ->get()
-                    ->pluck('count', 'status');
+            ->groupBy('status')
+            ->get()
+            ->pluck('count', 'status');
     }
 
+    /**
+     * Get the user who responded to the inquiry
+     */
+    public function respondedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'responded_by');
+    }
+
+    /**
+     * Get all responses for the inquiry
+     */
+    public function responses(): HasMany
+    {
+        return $this->hasMany(InquiryResponse::class);
+    }
+
+    /**
+     * Get latest response
+     */
+    public function latestResponse()
+    {
+        return $this->hasOne(InquiryResponse::class)->latest();
+    }
+
+
+    /**
+     * Check if inquiry has responses
+     */
+    public function hasResponses(): bool
+    {
+        return $this->responses()->exists();
+    }
+
+    /**
+     * Get unread responses count
+     */
+    public function unreadResponsesCount(): int
+    {
+        return $this->responses()->unread()->count();
+    }
+   
 }
