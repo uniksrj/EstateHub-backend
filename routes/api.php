@@ -10,14 +10,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 
+/** Authentication Routes */
 Route::post('/auth/register', [Auth::class, 'register']);
 Route::post('/auth/login', [Auth::class, 'login']);
+/** Authentication Routes */
+
+/** User Handle Auth Routes */
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/auth/logout', [Auth::class, 'logout']);
     Route::get('/auth/user', [Auth::class, 'user']);
     Route::get('/auth/user_metrics', [Auth::class, 'user_metrics']);
 });
+/** User Handle Auth Routes */
 
+/** Login User Routes */
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [User_controller::class, 'get_user_profile_details']);
     Route::post('/property/add', [Property_controller::class, 'add_property']);
@@ -35,7 +41,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/inquiries/{inquiryId}/respond', [Common_setup::class, 'addResponse']);
     Route::post('/inquiries/{inquiryId}/mark-read', [Common_setup::class, 'markAsRead']);
 });
+/** Login User Routes */
 
+/** Super Admin Routes */
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
 
     // User Management Routes
@@ -58,13 +66,18 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         // Change user status (activate/deactivate)
         Route::patch('/{id}/status', [Auth::class, 'userStatusChange']);
     });
-});
 
+});
+/** Super Admin Routes */
+
+/**  Admin Routes */
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     // Get Properties Details
     Route::get('/properties', [Property_controller::class, 'get_s_admin_property_details']);
 });
+/**  Admin Routes */
 
+/* Forget Password Routes */
 Route::post('/forgot-password', function (Request $request) {
     $request->validate(['email' => 'required|email']);
 
@@ -76,7 +89,9 @@ Route::post('/forgot-password', function (Request $request) {
         ? response()->json(['message' => __($status)], 200)
         : response()->json(['message' => __($status)], 400);
 });
+/* Forget Password Routes */
 
+/* Reset Password Routes */
 Route::post('/reset-password', function (Request $request) {
     $request->validate([
         'token' => 'required',
@@ -97,7 +112,10 @@ Route::post('/reset-password', function (Request $request) {
         ? response()->json(['message' => 'Password reset successfully'], 200)
         : response()->json(['message' => __($status)], 400);
 })->name('password.update');
+/* Reset Password Routes */
 
+/* General Property details api routes */
 Route::post('/properties/{id}', [Property_controller::class, 'trackView']);
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
+/* General Property details api routes */
