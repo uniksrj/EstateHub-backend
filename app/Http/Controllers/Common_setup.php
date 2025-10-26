@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\ResponseMessage;
 use App\Models\Favorite;
 use App\Models\Inquiry;
 use App\Models\InquiryResponse;
-use App\Models\Property;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -86,7 +86,7 @@ class Common_setup extends Controller
     }
 
     public function list_inquiries_by_user(Request $request)
-    {       
+    {
         $userId = auth()->id();
         $user = auth()->user();
         $userType = $user->role_id;
@@ -152,7 +152,6 @@ class Common_setup extends Controller
         $request->validate([
             'message' => 'required|string|min:1'
         ]);
-
         $user = auth()->user();
         $inquiry = Inquiry::findOrFail($inquiryId);
 
@@ -169,7 +168,7 @@ class Common_setup extends Controller
             }
         }
 
-        DB::transaction(function () use ($request, $inquiryId, $user, $inquiry) {
+        $return_response = DB::transaction(function () use ($request, $inquiryId, $user, $inquiry) {
             // Determine sender type based on user role
             $senderType = ($user->role_id == 6) ? 'seller' : 'buyer';
 
@@ -204,11 +203,17 @@ class Common_setup extends Controller
                     'status' => $newStatus
                 ]);
             }
+            // 🔥 Broadcast new response event to others (except sender)
+            broadcast(new ResponseMessage($response))->toOthers();
+            // broadcast(new ResponseMessage($response));
+            return $response;
         });
+            
 
         return response()->json([
             'success' => true,
-            'message' => 'Response sent successfully'
+            'message' => 'Response sent successfully',
+            'data' => $return_response
         ]);
     }
 

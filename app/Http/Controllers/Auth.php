@@ -176,9 +176,10 @@ class Auth extends Controller
         return response()->json([
             'user' => $user->load('preferences'),
             'message' => 'Login successful',
-            'success' => true
+            'success' => true,
+            'chatToken' => $token
         ])->header('Access-Control-Allow-Credentials', 'true')
-            ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
+            ->header('Access-Control-Allow-Origin', 'http://localhost:5173')->cookie($cookie);
     }
 
     public function logout(Request $request)
