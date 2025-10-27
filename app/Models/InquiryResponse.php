@@ -25,6 +25,8 @@ class InquiryResponse extends Model
         'updated_at' => 'datetime'
     ];
 
+    protected $appends = ['sender_name', 'timestamp'];
+
     public function inquiry()
     {
         return $this->belongsTo(Inquiry::class);
@@ -32,7 +34,17 @@ class InquiryResponse extends Model
 
     public function sender()
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'sender_id');
+    }
+
+     public function getSenderNameAttribute()
+    {
+        return $this->sender ? $this->sender->name : 'Unknown';
+    }
+
+    public function getTimestampAttribute()
+    {
+        return $this->created_at;
     }
 
     public function scopeFromSeller($query)

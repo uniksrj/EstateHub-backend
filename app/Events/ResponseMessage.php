@@ -16,6 +16,7 @@ class ResponseMessage implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
     public $response;
+    public $payload;
     /**
      * Create a new event instance.
      */
@@ -23,6 +24,11 @@ class ResponseMessage implements ShouldBroadcast
     {
 
         $this->response = $inquiry_response->load('sender');
+        $inquiry_response->sender_name = $inquiry_response->sender ? $inquiry_response->sender->name : 'Unknown';
+        $inquiry_response->timestamp = $inquiry_response->created_at?->toIso8601String();
+
+        // Use array payload to be safe
+        $this->payload = $inquiry_response->toArray();
     }
 
     /**
@@ -37,7 +43,7 @@ class ResponseMessage implements ShouldBroadcast
                 'response_id' => $this->response->id,
                 'stack_trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)
             ]);
-            return []; 
+            return [];
         }
 
         return [
@@ -48,5 +54,10 @@ class ResponseMessage implements ShouldBroadcast
     public function broadcastAs()
     {
         return 'response.created';
+    }
+
+    public function broadcastWith(): array
+    {
+        return ['response' => $this->payload];
     }
 }

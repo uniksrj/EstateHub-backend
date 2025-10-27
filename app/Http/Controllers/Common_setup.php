@@ -182,7 +182,7 @@ class Common_setup extends Controller
             ]);
 
             // Update inquiry status based on your existing status enum
-            $newStatus = 'contacted'; // Default status
+            $newStatus = 'contacted';
 
             if ($senderType === 'seller') {
                 $newStatus = 'responded';
@@ -195,20 +195,24 @@ class Common_setup extends Controller
             } else {
                 // Buyer is responding - update status accordingly
                 if ($inquiry->status === 'responded') {
-                    $newStatus = 'contacted'; // Continue conversation
+                    $newStatus = 'contacted';
                 } else {
-                    $newStatus = 'contacted'; // Initial buyer follow-up
+                    $newStatus = 'contacted';
                 }
                 $inquiry->update([
                     'status' => $newStatus
                 ]);
             }
+
+            $response->sender_name = $response->sender ? $response->sender->name : 'Unknown';
+            $response->timestamp = $response->created_at?->toIso8601String();
+
             // 🔥 Broadcast new response event to others (except sender)
             broadcast(new ResponseMessage($response))->toOthers();
             // broadcast(new ResponseMessage($response));
             return $response;
         });
-            
+
 
         return response()->json([
             'success' => true,
