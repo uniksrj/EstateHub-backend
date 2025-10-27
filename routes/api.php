@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inquiries/{inquiryId}', [Common_setup::class, 'getInquiry']);
     Route::post('/inquiries/{inquiryId}/respond', [Common_setup::class, 'addResponse']);
     Route::post('/inquiries/{inquiryId}/mark-read', [Common_setup::class, 'markAsRead']);
+    Route::post('/inquiries/{inquiryId}/close', [Common_setup::class, 'closeInquiry']);
 });
 /** Login User Routes */
 

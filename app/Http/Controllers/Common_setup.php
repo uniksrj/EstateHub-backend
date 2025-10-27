@@ -66,7 +66,7 @@ class Common_setup extends Controller
                 'user_id' => auth()->id(),
                 'source' => 'website',
                 'featured' => $request->boolean('featured', false),
-                'status' => 'new'
+                'status' => 0
             ]);
 
             DB::commit();
@@ -178,14 +178,11 @@ class Common_setup extends Controller
                 'sender_type' => $senderType,
                 'sender_id' => $user->id,
                 'message' => $request->message,
-                'is_read' => ($senderType === 'seller') // Mark as read if seller sends
+                'is_read' => ($senderType === 'seller')
             ]);
 
-            // Update inquiry status based on your existing status enum
-            $newStatus = 'contacted';
-
             if ($senderType === 'seller') {
-                $newStatus = 'responded';
+                $newStatus = 1;
                 $inquiry->update([
                     'status' => $newStatus,
                     'responded_at' => now(),
@@ -194,10 +191,10 @@ class Common_setup extends Controller
                 ]);
             } else {
                 // Buyer is responding - update status accordingly
-                if ($inquiry->status === 'responded') {
-                    $newStatus = 'contacted';
+                if ($inquiry->status === 1) {
+                    $newStatus = 2;
                 } else {
-                    $newStatus = 'contacted';
+                    $newStatus = 2;
                 }
                 $inquiry->update([
                     'status' => $newStatus
@@ -300,5 +297,40 @@ class Common_setup extends Controller
             ->update(['is_read' => true]);
 
         return response()->json(['success' => true]);
+    }
+
+    public function closeInquiry($inquiryId, Request $request)
+    {
+        $user = auth()->user();
+
+        try {
+            DB::transaction(function () use ($user, $inquiryId, $request) {
+
+                // 🔹 Mark all unread messages as read
+                InquiryResponse::where('inquiry_id', $inquiryId)
+                    ->where('is_read', false)
+                    ->where('sender_type', '!=', ($user->role_id == 6 ? 'seller' : 'buyer'))
+                    ->update(['is_read' => true]);
+
+                // 🔹 Update inquiry status
+                Inquiry::where('id', $inquiryId)->update([
+                    'status' => 3, 
+                    'closed_by' => $user->id,
+                    'closed_at' => now(),
+                    'close_reason' => $request->close_reason ?? null,
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Inquiry closed successfully.',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to close inquiry.',
+                'error' => $e->getMessage(),
+            ], 500);
+        }
     }
 }
