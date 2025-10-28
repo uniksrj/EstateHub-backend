@@ -489,7 +489,7 @@ class Property_controller extends Controller
 
     public function get_property_list_by_userID(Request $request)
     {
-        if (!in_array($request->user()->role_id, [1, 2, 6])) {
+        if (!in_array($request->user()->role_id, [1, 2, 3, 6])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
         }
 

@@ -99,7 +99,7 @@ class Common_setup extends Controller
             'responses.sender'
         ]);
 
-        if ($userType == 6) {
+        if ($userType == 6 || $userType == 3) {
             $query->whereHas('property', function ($q) use ($userId) {
                 $q->where('agent_id', $userId);
             });
@@ -302,6 +302,10 @@ class Common_setup extends Controller
     public function closeInquiry($inquiryId, Request $request)
     {
         $user = auth()->user();
+        $request->validate([
+            'status' => 'required|numeric',
+            'close_reason' => 'required|string'
+        ]);
 
         try {
             DB::transaction(function () use ($user, $inquiryId, $request) {
@@ -314,7 +318,7 @@ class Common_setup extends Controller
 
                 // 🔹 Update inquiry status
                 Inquiry::where('id', $inquiryId)->update([
-                    'status' => 3, 
+                    'status' => $request->status, 
                     'closed_by' => $user->id,
                     'closed_at' => now(),
                     'close_reason' => $request->close_reason ?? null,
