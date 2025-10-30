@@ -17,7 +17,8 @@ use function Pest\Laravel\get;
 class Property_controller extends Controller
 {
     protected PropertyAnalyticsService $proprtyService;
-    public function __construct(PropertyAnalyticsService $proprtyService) {
+    public function __construct(PropertyAnalyticsService $proprtyService)
+    {
         $this->proprtyService = $proprtyService;
     }
 
@@ -30,7 +31,7 @@ class Property_controller extends Controller
     {
         DB::beginTransaction();
         try {
-            // Logic to add a property
+            // add a property
             $validatedData = $request->validate([
                 'title' => 'required|string|max:255',
                 'description' => 'required|string',
@@ -55,6 +56,24 @@ class Property_controller extends Controller
                 'has_heating' => 'integer|boolean',
                 'images.*' => 'nullable|image|max:10240',
             ]);
+
+
+            if (isset($validatedData['features']) && is_string($validatedData['features'])) {
+                $featuresString = $validatedData['features'];
+
+                // Clean up the string - remove extra quotes and newlines
+                $featuresString = trim($featuresString);
+                $featuresString = str_replace(['"', "'", "\n", "\\"], '', $featuresString);
+
+                // Split by commas and clean each item
+                $featuresArray = array_map('trim', explode(',', $featuresString));
+
+                // Remove empty values
+                $featuresArray = array_filter($featuresArray);
+
+                // Convert to JSON string for database storage
+                $validatedData['features'] = !empty($featuresArray) ? json_encode(array_values($featuresArray)) : null;
+            }
 
             $property = Property::create([
                 ...$validatedData,
@@ -127,8 +146,8 @@ class Property_controller extends Controller
 
     public function get_all_properties(Request $request)
     {
-         $user = auth()->user();
-        $properties = Property::with(['agent', 'images','favorites'])
+        $user = auth()->user();
+        $properties = Property::with(['agent', 'images', 'favorites'])
             ->withFilters($request->all(), $user)
             ->orderBy('created_at', 'desc')
             ->paginate(6);
@@ -175,6 +194,15 @@ class Property_controller extends Controller
                 'images.*' => 'nullable|image|max:10240',
             ]);
 
+            if (isset($validatedData['features']) && is_string($validatedData['features'])) {
+                $featuresString = $validatedData['features'];
+
+                // Clean up the string - remove extra quotes and newlines
+                $featuresString = trim($featuresString);
+                $featuresString = str_replace(['"', "'", "\n", "\\"], '', $featuresString);
+
+                $validatedData['features'] = substr($featuresString, 0, 255);
+            }
             $property->update($validatedData);
 
             if ($request->hasFile('images')) {
@@ -205,7 +233,7 @@ class Property_controller extends Controller
 
     public function delete_property(Request $request, $id)
     {
-         if (!in_array($request->user()->role_id, [1, 2, 6])) {
+        if (!in_array($request->user()->role_id, [1, 2, 6])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
         }
 
@@ -447,7 +475,7 @@ class Property_controller extends Controller
 
         $recentview = PropertyView::where('property_id', $property_id)
             ->where('session_id', session()->getid())
-            ->where('viewed_at','>=', now()->subMinutes(30))
+            ->where('viewed_at', '>=', now()->subMinutes(30))
             ->exists();
 
         if (!$recentview) {
@@ -518,7 +546,7 @@ class Property_controller extends Controller
         ]);
     }
 
-     /**
+    /**
      * Get single property with detailed analytics
      */
     public function getPropertyWithAnalytics($id)
@@ -554,7 +582,7 @@ class Property_controller extends Controller
     public function getDashboardData(Request $request)
     {
         $sellerId = auth()->id();
-        
+
         // Get seller's properties with counts
         $properties = Property::where('agent_id', $sellerId)
             ->withCount(['property_views', 'inquiries', 'offers'])
@@ -564,30 +592,30 @@ class Property_controller extends Controller
         $totalListings = $properties->count();
         $activeListings = $properties->where('status', 'for_sale')->count();
         $totalViews = $properties->sum('property_views_count');
-        
-        $pendingOffers = PropertyOffer::whereHas('property', function($query) use ($sellerId) {
+
+        $pendingOffers = PropertyOffer::whereHas('property', function ($query) use ($sellerId) {
             $query->where('agent_id', $sellerId);
         })->where('status', 'pending')->count();
 
         // Recent activity (last 7 days views)
-        $recentActivity = PropertyView::whereHas('property', function($query) use ($sellerId) {
+        $recentActivity = PropertyView::whereHas('property', function ($query) use ($sellerId) {
             $query->where('agent_id', $sellerId);
         })
-        ->with('property')
-        ->select('property_id', DB::raw('COUNT(*) as view_count'), DB::raw('MAX(viewed_at) as last_viewed'))
-        ->where('viewed_at', '>=', now()->subDays(7))
-        ->groupBy('property_id')
-        ->orderBy('last_viewed', 'desc')
-        ->limit(5)
-        ->get()
-        ->map(function($view) {
-             $carbon = new \Carbon\Carbon($view->last_viewed);
-            return [
-                'property_title' => $view->property->title,
-                'view_count' => $view->view_count,
-                'last_viewed' => $carbon->diffForHumans(),
-            ];
-        });
+            ->with('property')
+            ->select('property_id', DB::raw('COUNT(*) as view_count'), DB::raw('MAX(viewed_at) as last_viewed'))
+            ->where('viewed_at', '>=', now()->subDays(7))
+            ->groupBy('property_id')
+            ->orderBy('last_viewed', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($view) {
+                $carbon = new \Carbon\Carbon($view->last_viewed);
+                return [
+                    'property_title' => $view->property->title,
+                    'view_count' => $view->view_count,
+                    'last_viewed' => $carbon->diffForHumans(),
+                ];
+            });
 
         // Performance data for charts
         $performanceData = $this->proprtyService->getPerformanceData($sellerId);
@@ -607,6 +635,5 @@ class Property_controller extends Controller
             'topPerforming' => $this->proprtyService->getTopPerformingProperties($sellerId),
             'recentInquiries' => $this->proprtyService->getRecentInquiries($sellerId)
         ]);
-    }   
-   
+    }
 }

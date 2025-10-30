@@ -27,6 +27,7 @@ class Property extends Model
         'longitude',
         'bedrooms',
         'bathrooms',
+        'features',
         'sq_ft',
         'lot_size',
         'year_built',
