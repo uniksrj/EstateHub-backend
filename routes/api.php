@@ -73,7 +73,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 
 /**  Admin Routes */
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
-    // Get Properties Details
     Route::get('/properties', [Property_controller::class, 'get_s_admin_property_details']);
 });
 /**  Admin Routes */
