@@ -119,3 +119,13 @@ Route::post('/properties/{id}', [Property_controller::class, 'trackView']);
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
 /* General Property details api routes */
+
+
+/**  Agent Route */
+Route::middleware(['auth:sanctum', 'agent'])->prefix('agent')->group(function () {    
+    Route::get('/pipeline', [Common_setup::class, 'get_agent_pipeline_data']);
+    Route::get('/deal-losses', [Common_setup::class, 'get_agent_deal_losses']); 
+    Route::post('/deal-losses', [Common_setup::class, 'store_agent_deal_loss']);
+    Route::get('/buyers', [Common_setup::class, 'getAgentBuyers']);
+});
+/**  Agent Route */

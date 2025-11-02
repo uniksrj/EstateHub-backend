@@ -2,24 +2,25 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Inquiry;
 use App\Models\Property;
 use App\Models\PropertyImage;
 use App\Models\PropertyOffer;
 use App\Models\PropertyView;
+use App\Models\UserActivity;
 use App\Services\PropertyAnalyticsService;
+use App\Services\UserMetricsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
-use function Pest\Laravel\get;
-
 class Property_controller extends Controller
 {
     protected PropertyAnalyticsService $propertyService;
-    public function __construct(PropertyAnalyticsService $propertyService)
+    protected $userActivityService;
+    public function __construct(PropertyAnalyticsService $propertyService, UserMetricsService $userActivityService)
     {
         $this->propertyService = $propertyService;
+        $this->userActivityService = $userActivityService;
     }
 
     public function index()
@@ -56,23 +57,9 @@ class Property_controller extends Controller
                 'has_heating' => 'integer|boolean',
                 'images.*' => 'nullable|image|max:10240',
             ]);
-
-
             if (isset($validatedData['features']) && is_string($validatedData['features'])) {
-                $featuresString = $validatedData['features'];
 
-                // Clean up the string - remove extra quotes and newlines
-                $featuresString = trim($featuresString);
-                $featuresString = str_replace(['"', "'", "\n", "\\"], '', $featuresString);
-
-                // Split by commas and clean each item
-                $featuresArray = array_map('trim', explode(',', $featuresString));
-
-                // Remove empty values
-                $featuresArray = array_filter($featuresArray);
-
-                // Convert to JSON string for database storage
-                $validatedData['features'] = !empty($featuresArray) ? json_encode(array_values($featuresArray)) : null;
+                $validatedData['features'] = json_encode($this->convert_features_to_json($validatedData['features']) ?? []);
             }
 
             $property = Property::create([
@@ -93,6 +80,8 @@ class Property_controller extends Controller
                 }
             }
 
+            $this->create_user_activity($request, $property);
+
             DB::commit();
 
             return response()->json([
@@ -108,6 +97,24 @@ class Property_controller extends Controller
                 'error_message' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function create_user_activity(Request $request, $property = null)
+    {
+        UserActivity::create([
+            'user_id' => auth()->id(),
+            'activity_type' => 'property_created',
+            'property_id' => $property->id,
+            'inquiry_id' => null,
+            'metadata' => null,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        return response()->json([
+            'message' => 'User activity recorded successfully',
+            'success' => true
+        ], 201);
     }
 
     public function get_user_properties(Request $request)
@@ -267,17 +274,19 @@ class Property_controller extends Controller
     public function get_s_admin_property_details(Request $request)
     {
         $properties = Property::with(['agent', 'images'])
-            ->withFilters($request->all(),auth()->user())
+            ->withFilters($request->all(), auth()->user())
             ->orderBy('created_at', 'desc')
             ->get();
 
         $metrics = $this->propertyService->getMetricsDetails();
         $charts = $this->propertyService->getChartData();
+        $activity = $this->userActivityService->getRecentActivity();
 
         return response()->json([
             'properties' => $properties,
             'metrics' => $metrics,
-            'charts' => $charts
+            'charts' => $charts,
+            'activity' => $activity
         ]);
     }
 
@@ -348,7 +357,7 @@ class Property_controller extends Controller
         $enhancedProperties = $propertyList->getCollection()->map(function ($property) {
             return $this->propertyService->enhancePropertyWithAnalytics($property);
         });
-        
+
         $propertyList->setCollection($enhancedProperties);
 
         return response()->json([
@@ -437,7 +446,7 @@ class Property_controller extends Controller
                 'activeListings' => $activeListings,
                 'totalViews' => $totalViews,
                 'pendingOffers' => $pendingOffers,
-                'unreadMessages' => 0, 
+                'unreadMessages' => 0,
                 'totalInquiries' => $properties->sum('inquiries_count'),
                 'soldProperties' => $properties->where('status', 'sold')->count(),
             ],
@@ -446,5 +455,16 @@ class Property_controller extends Controller
             'topPerforming' => $this->propertyService->getTopPerformingProperties($sellerId),
             'recentInquiries' => $this->propertyService->getRecentInquiries($sellerId)
         ]);
+    }
+
+    public function convert_features_to_json($input_data)
+    {
+        $featuresString = trim($input_data);
+        $featuresString = str_replace(['"', "'", "\n", "\\"], '', $featuresString);
+
+        $featuresArray = array_map('trim', explode(',', $featuresString));
+
+        $featuresArray = array_filter($featuresArray);
+        return $featuresArray;
     }
 }
