@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Events\ResponseMessage;
+use App\Models\DealLoss;
+use App\Models\DealPipeline;
 use App\Models\Favorite;
 use App\Models\Inquiry;
 use App\Models\InquiryResponse;
+use App\Models\Property;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -336,5 +340,138 @@ class Common_setup extends Controller
                 'error' => $e->getMessage(),
             ], 500);
         }
+    }
+
+    public function store_agent_deal_loss(Request $request)
+    {
+        if (auth()->user()->role_id != 3) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $validated = $request->validate([
+            'property_id' => 'required|exists:properties,id',
+            'reason' => 'required|string|max:255',
+            'notes' => 'required|string|max:1000',
+            'buyer_id' => 'nullable|exists:users,id',
+        ]);
+
+        $property = Property::where('id', $validated['property_id'])
+            ->where('agent_id', auth()->id())
+            ->firstOrFail();
+
+        DealLoss::create([
+            'agent_id' => auth()->id(),
+            'property_id' => $validated['property_id'],
+            'buyer_id' => $validated['buyer_id'] ?? null,
+            'reason' => $validated['reason'],
+            'details' => $validated['notes'],
+            'lost_at' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function getAgentBuyers($type = "")
+    {
+        if (auth()->user()->role_id != 3) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        $agent = auth()->user();
+
+        $buyers = User::where('role_id', 5)
+            ->whereHas('inquiries.property', function ($query) use ($agent) {
+                $query->where('agent_id', $agent->id);
+            })
+            ->withCount([
+                'inquiries as inquiries_count' => fn($q) =>
+                $q->whereHas('property', fn($p) => $p->where('agent_id', $agent->id)),
+                'purchases as deals_count' => fn($q) =>
+                $q->whereHas('property', fn($p) => $p->where('agent_id', $agent->id))
+            ])
+            ->select('id', 'name', 'email', 'phone', 'created_at', 'is_active', 'role_id')
+            ->get()
+            ->map(function ($buyer) {
+                $buyer->inquiries_count = $buyer->inquiries_count ?? 0;
+                $buyer->deals_count = $buyer->deals_count ?? 0;
+                return $buyer;
+            });;
+
+        if ($type === "dropdown") {
+            $buyers = $buyers->map(function ($buyer) {
+                return [
+                    'value' => $buyer->id,
+                    'label' => $buyer->name . ' (' . $buyer->email . ')'
+                ];
+            });
+            return response()->json(['buyers' => $buyers]);
+        }
+        if ($type === "array") {
+            return $buyers->toArray();
+        }
+        return response()->json(['buyers' => $buyers]);
+    }
+
+    public function get_agent_deal_losses(Request $request)
+    {
+        if (auth()->user()->role_id != 3) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $dealLosses = DealLoss::with(['property', 'buyer'])
+            ->where('agent_id', auth()->id())
+            ->orderBy('lost_at', 'desc')
+            ->get();
+        $agent_buyer = $this->getAgentBuyers("array");
+        $agent_pipeline = $this->get_agent_pipeline_data($request, auth()->id(), "array");
+        return response()->json(['deal_losses' => $dealLosses, 'agent_buyer' => $agent_buyer, 'agent_pipeline' => $agent_pipeline]);
+    }
+
+    public function get_agent_pipeline_data(Request $request, $agentId = null, $type = "")
+    {
+        if (auth()->user()->role_id != 3) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Get all deals for this agent
+        $deals = DealPipeline::where('agent_id', $agentId)->get();
+
+        // Group by stage (status)
+        $stages = ['prospecting', 'contacted', 'showing', 'negotiation', 'under_review', 'closed_won', 'closed_lost'];
+
+        $pipeline = collect($stages)->map(function ($stage) use ($deals) {
+            $filtered = $deals->where('status', $stage);
+            return [
+                'stage' => ucfirst(str_replace('_', ' ', $stage)),
+                'deals' => $filtered->count(),
+                'value' => round($filtered->sum('offer_price') / 1000000, 2),
+            ];
+        });
+
+        $totalDeals = $deals->count();
+        $closedWon = $deals->where('status', 'closed_won')->count();
+        $closedLost = $deals->where('status', 'closed_lost')->count();
+
+        if ($type === "array") {
+            return [
+                'pipeline' => $pipeline->toArray(),
+                'summary' => [
+                    'totalDeals' => $totalDeals,
+                    'activeDeals' => $deals->whereNotIn('status', ['closed_won', 'closed_lost'])->count(),
+                    'closedWon' => $closedWon,
+                    'closedLost' => $closedLost,
+                    'pipelineValue' => $deals->sum('offer_price')
+                ]
+            ];
+        }
+
+        return response()->json([
+            'pipeline' => $pipeline,
+            'summary' => [
+                'totalDeals' => $totalDeals,
+                'activeDeals' => $deals->whereNotIn('status', ['closed_won', 'closed_lost'])->count(),
+                'closedWon' => $closedWon,
+                'closedLost' => $closedLost,
+                'pipelineValue' => $deals->sum('offer_price')
+            ]
+        ]);
     }
 }
