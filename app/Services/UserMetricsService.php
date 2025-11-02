@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\UserActivity;
 use Carbon\Carbon;
 
 class UserMetricsService
@@ -417,5 +418,40 @@ class UserMetricsService
         ];
 
         return $colors[$roleName] ?? '#6b7280';
+    }
+
+    public function getRecentActivity()
+    {
+        $activities = UserActivity::with(['user:id,name', 'property:id,property_code'])
+            ->latest()
+            ->take(10)
+            ->get()
+            ->map(function ($activity) {
+                $type = match (true) {
+                    str_contains(strtolower($activity->activity_type), 'delete'),
+                    str_contains(strtolower($activity->activity_type), 'dead'),
+                    str_contains(strtolower($activity->activity_type), 'remove') => 'negative',
+
+                    str_contains(strtolower($activity->activity_type), 'add'),
+                    str_contains(strtolower($activity->activity_type), 'create'),
+                    str_contains(strtolower($activity->activity_type), 'sold'),
+                    str_contains(strtolower($activity->activity_type), 'recover') => 'positive',
+
+                    default => 'neutral'
+                };
+
+                return [
+                    'id' => $activity->id,
+                    'deal' => $activity->property?->property_code ?? 'N/A',
+                    'action' => ucfirst(str_replace('_', ' ', $activity->activity_type)),
+                    'user' => $activity->user?->name ?? 'System',
+                    'time' => Carbon::parse($activity->created_at)->diffForHumans(),
+                    'type' => $type,
+                ];
+            });
+
+        return response()->json([
+            'activities' => $activities
+        ]);
     }
 }
