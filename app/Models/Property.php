@@ -39,7 +39,8 @@ class Property extends Model
         'has_security',
         'has_air_conditioning',
         'has_heating',
-        'agent_id'
+        'agent_id',
+        'property_code'
     ];
 
     protected $casts = [
@@ -268,4 +269,21 @@ class Property extends Model
     // {
     //     return $this->hasMany::class);
     // }
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($property) {
+            if (empty($property->property_code)) {
+                $nextId = Property::max('id') + 1;
+                $property->property_code = 'PR-' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+
+    public function purchases()
+    {
+        return $this->hasMany(PropertyPurchase::class);
+    }
 }
