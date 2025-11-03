@@ -643,4 +643,27 @@ class PropertyAnalyticsService
                     ->whereMonth('sold_at', $lastMonth->month);
             })->count();
     }
+
+    public function getAgentClientsStats($agent_id="")
+    {
+        $agent = $agent_id ? $agent_id : auth()->user()->id;
+
+        $activeClients = User::where('role_id', 5)
+            ->whereHas('inquiries.property', function ($q) use ($agent) {
+                $q->where('agent_id', $agent);
+            })
+            ->count();
+
+        $newClientsThisWeek = User::where('role_id', 5)
+            ->whereHas('inquiries.property', function ($q) use ($agent) {
+                $q->where('agent_id', $agent);
+            })
+            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
+            ->count();
+
+        return [
+            'active_clients' => $activeClients,
+            'new_this_week' => $newClientsThisWeek,
+        ];
+    }
 }

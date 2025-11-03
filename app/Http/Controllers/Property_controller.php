@@ -358,11 +358,17 @@ class Property_controller extends Controller
             return $this->propertyService->enhancePropertyWithAnalytics($property);
         });
 
+        $agentClientStats = [];
+        if (in_array($request->user()->role_id, [3])) {
+            $agentClientStats = $this->propertyService->getAgentClientsStats(auth()->id());
+        }
+
         $propertyList->setCollection($enhancedProperties);
 
         return response()->json([
             'status' => 1,
-            'data' => $propertyList
+            'data' => $propertyList,
+            'agentClientStats' => $agentClientStats
         ]);
     }
 
