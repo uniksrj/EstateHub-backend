@@ -5,7 +5,6 @@ use App\Http\Controllers\Auth;
 use App\Http\Controllers\Common_setup;
 use App\Http\Controllers\Property_controller;
 use App\Http\Controllers\User_controller;
-use App\Models\Property;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
@@ -40,7 +39,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/inquiries/{inquiryId}', [Common_setup::class, 'getInquiry']);
     Route::post('/inquiries/{inquiryId}/respond', [Common_setup::class, 'addResponse']);
     Route::post('/inquiries/{inquiryId}/mark-read', [Common_setup::class, 'markAsRead']);
-    Route::post('/inquiries/{inquiryId}/close', [Common_setup::class, 'closeInquiry']);
+    Route::post('/store-schedule', [User_controller::class, 'store_schedule']);
+    Route::get('/get-schedule', [User_controller::class, 'get_schedule']);
+    Route::put('/update-schedule-status', [User_controller::class, 'update_schedule_status']);
 });
 /** Login User Routes */
 
