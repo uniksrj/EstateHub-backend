@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\BuyerPreferenceRequest;
+use App\Jobs\MatchPropertiesToPreferences;
+use App\Models\BuyerPreference;
 use App\Models\Favorite;
-use App\Models\Property;
 use App\Models\PropertyTours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -212,5 +214,92 @@ class User_controller extends Controller
             'message' => 'Schedule status updated successfully',
             'schedule' => $schedule
         ]);
+    }
+
+    public function getPreferences()
+    {
+        return BuyerPreference::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    public function showPreferences(Request $request)
+    {
+        $id = $request->query('id');
+
+        if (!$id) {
+            // Get preferences in priority order: default -> most recent -> create new
+            $preference = BuyerPreference::where('user_id', auth()->id())
+                ->when(true, function ($query) {
+                    return $query->orderBy('is_default', 'desc')
+                        ->orderBy('updated_at', 'desc');
+                })
+                ->first();
+
+            // If no preferences exist, create a default one
+            if (!$preference) {
+                $preference = BuyerPreference::create([
+                    'user_id' => auth()->id(),
+                    'name' => 'My Search Criteria',
+                    'is_default' => true,
+                    // Add default values for other fields
+                    'alerts_enabled' => true,
+                    'alert_frequency' => 'instant'
+                ]);
+            }
+        } else {
+            $preference = BuyerPreference::where('user_id', auth()->id())
+                ->findOrFail($id);
+        }
+
+        return response()->json($preference);
+    }
+
+    public function updatePreferences($id,BuyerPreferenceRequest $request)
+    {
+        
+        $validated = $request->validated();
+        $preferences = BuyerPreference::updateOrCreate(
+            ['user_id' => auth()->id(),'id' => $id ],
+            array_merge($validated, ['updated_at' => now()])
+        );
+
+        // Trigger property matching job
+        MatchPropertiesToPreferences::dispatch($preferences);
+
+        return response()->json($preferences);
+    }
+
+    public function storePreferences(BuyerPreferenceRequest $request)
+    {
+        $preference = BuyerPreference::create([
+            'user_id' => auth()->id(),
+            'name' => $request->name ?? 'New Search',
+            ...$request->validated()
+        ]);
+
+        // Trigger property matching
+        MatchPropertiesToPreferences::dispatch($preference);
+
+        return response()->json($preference, 201);
+    }
+
+    public function destroy($id)
+    {
+        $preference = BuyerPreference::where('user_id', auth()->id())
+            ->findOrFail($id);
+
+        // Don't delete if it's the last preference
+        $preferenceCount = BuyerPreference::where('user_id', auth()->id())->count();
+
+        if ($preferenceCount <= 1) {
+            return response()->json([
+                'message' => 'Cannot delete your only preference'
+            ], 422);
+        }
+
+        $preference->delete();
+
+        return response()->json(['message' => 'Preference deleted']);
     }
 }

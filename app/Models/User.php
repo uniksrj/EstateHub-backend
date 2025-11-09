@@ -162,4 +162,19 @@ class User extends Authenticatable
     {
         return $this->hasMany(PropertyPurchase::class, 'buyer_id');
     }
+
+    public function buyerPreferences()
+    {
+        return $this->hasMany(BuyerPreference::class);
+    }
+
+    public function defaultPreference()
+    {
+        return $this->hasOne(BuyerPreference::class)->where('is_default', true);
+    }
+
+    public function activePreferences()
+    {
+        return $this->hasMany(BuyerPreference::class)->active();
+    }
 }
