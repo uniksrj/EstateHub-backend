@@ -6,6 +6,7 @@ use App\Http\Requests\BuyerPreferenceRequest;
 use App\Jobs\MatchPropertiesToPreferences;
 use App\Models\BuyerPreference;
 use App\Models\Favorite;
+use App\Models\PropertyAlert;
 use App\Models\PropertyTours;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -255,12 +256,12 @@ class User_controller extends Controller
         return response()->json($preference);
     }
 
-    public function updatePreferences($id,BuyerPreferenceRequest $request)
+    public function updatePreferences($id, BuyerPreferenceRequest $request)
     {
-        
+
         $validated = $request->validated();
         $preferences = BuyerPreference::updateOrCreate(
-            ['user_id' => auth()->id(),'id' => $id ],
+            ['user_id' => auth()->id(), 'id' => $id],
             array_merge($validated, ['updated_at' => now()])
         );
 
@@ -301,5 +302,30 @@ class User_controller extends Controller
         $preference->delete();
 
         return response()->json(['message' => 'Preference deleted']);
+    }
+
+    public function storeAlert(Request $request)
+    {
+        $alert = PropertyAlert::create([
+            'user_id' => auth()->id(),
+            'preference_id' => $request->preference_id,
+            'name' => $request->name,
+            'criteria' => $request->criteria,
+            'is_active' => $request->is_active ?? true,
+            'frequency' => $request->frequency ?? 'instant',
+            'match_count' => 0
+        ]);
+
+        return response()->json($alert);
+    }
+
+    public function toggleAlert($id)
+    {
+        $alert = PropertyAlert::where('user_id', auth()->id())
+            ->findOrFail($id);
+
+        $alert->update(['is_active' => !$alert->is_active]);
+
+        return response()->json($alert);
     }
 }

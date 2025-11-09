@@ -140,9 +140,9 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::delete('/preferences/{id}', [User_controller::class, 'destroy']);
     
     // Alerts
-    Route::get('/alerts', [Property_controller::class, 'index']);
-    Route::post('/alerts', [Property_controller::class, 'store']);
-    Route::patch('/alerts/{alert}/toggle', [Property_controller::class, 'toggle']);
-    Route::delete('/alerts/{alert}', [Property_controller::class, 'destroy']);
+    Route::get('/alerts', [User_controller::class, 'getAlerts']);
+    Route::post('/alerts', [User_controller::class, 'storeAlert']);
+    Route::patch('/alerts/{id}/toggle', [User_controller::class, 'toggleAlert']);
+    Route::delete('/alerts/{id}', [User_controller::class, 'deleteAlert']);
 });
 /**  Buyer Route */
