@@ -143,6 +143,7 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::get('/alerts', [User_controller::class, 'getAlerts']);
     Route::post('/alerts', [User_controller::class, 'storeAlert']);
     Route::patch('/alerts/{id}/toggle', [User_controller::class, 'toggleAlert']);
+    Route::put('/alerts/{id}', [User_controller::class, 'updateAlert']);
     Route::delete('/alerts/{id}', [User_controller::class, 'deleteAlert']);
 });
 /**  Buyer Route */

@@ -247,6 +247,7 @@ class User_controller extends Controller
                     'alerts_enabled' => true,
                     'alert_frequency' => 'instant'
                 ]);
+                 MatchPropertiesToPreferences::dispatch($preference);
             }
         } else {
             $preference = BuyerPreference::where('user_id', auth()->id())
@@ -325,6 +326,30 @@ class User_controller extends Controller
             ->findOrFail($id);
 
         $alert->update(['is_active' => !$alert->is_active]);
+
+        return response()->json($alert);
+    }
+
+    public function getAlerts()
+    {
+        return PropertyAlert::where('user_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    public function updateAlert($id, Request $request)
+    {
+        $alert = PropertyAlert::where('user_id', auth()->id())
+            ->findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'criteria' => 'sometimes|array',
+            'is_active' => 'sometimes|boolean',
+            'frequency' => 'sometimes|string|in:instant,daily,weekly'
+        ]);
+
+        $alert->update($validated);
 
         return response()->json($alert);
     }

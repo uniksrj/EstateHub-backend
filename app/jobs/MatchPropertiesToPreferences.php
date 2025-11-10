@@ -26,7 +26,7 @@ class MatchPropertiesToPreferences implements ShouldQueue
     public function handle()
     {
         // Build query based on preferences
-        $query = Property::where('status', 'active');
+        $query = Property::where('status', 'for_sale');
         
         // Apply price filters
         if ($this->preferences->min_price) {
@@ -46,7 +46,7 @@ class MatchPropertiesToPreferences implements ShouldQueue
         
         // Apply property type filter
         if ($this->preferences->property_type) {
-            $query->where('type', $this->preferences->property_type);
+            $query->where('property_type', $this->preferences->property_type);
         }
         
         // Get matching properties (last 7 days)

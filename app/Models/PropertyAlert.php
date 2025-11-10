@@ -35,16 +35,12 @@ class PropertyAlert extends Model
         'preference_id',
         'name',
         'criteria',
-        'status',
+        'is_active',
         'frequency',
         'match_count',
-        'last_matched_at',
-        'last_notified_at',
         'total_matches',
-        'is_active',
-        'email_notifications',
-        'push_notifications',
-        'notification_threshold',
+        'last_matched_at',
+        'last_notified_at'
     ];
 
     /**
@@ -54,16 +50,9 @@ class PropertyAlert extends Model
      */
     protected $casts = [
         'criteria' => 'array',
+        'is_active' => 'boolean',
         'last_matched_at' => 'datetime',
         'last_notified_at' => 'datetime',
-        'match_count' => 'integer',
-        'total_matches' => 'integer',
-        'is_active' => 'boolean',
-        'email_notifications' => 'boolean',
-        'push_notifications' => 'boolean',
-        'notification_threshold' => 'integer',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
     ];
 
     /**
@@ -72,14 +61,8 @@ class PropertyAlert extends Model
      * @var array
      */
     protected $attributes = [
-        'status' => self::STATUS_ACTIVE,
-        'frequency' => self::FREQUENCY_INSTANT,
-        'match_count' => 0,
-        'total_matches' => 0,
         'is_active' => true,
-        'email_notifications' => true,
-        'push_notifications' => true,
-        'notification_threshold' => 1,
+        'match_count' => 0,
     ];
 
     /**
