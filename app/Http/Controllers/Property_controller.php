@@ -84,6 +84,10 @@ class Property_controller extends Controller
 
             DB::commit();
 
+            // ✅ TRIGGER PROPERTY MATCHING AFTER PROPERTY IS CREATED
+            // This will find all preferences that match this new property
+            $this->propertyService->matchNewPropertyToPreferences($property);
+
             return response()->json([
                 'message' => 'Property created successfully',
                 'property' => $property->load('images'),

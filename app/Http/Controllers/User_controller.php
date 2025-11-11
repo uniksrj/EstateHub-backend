@@ -267,7 +267,7 @@ class User_controller extends Controller
         );
 
         // Trigger property matching job
-        MatchPropertiesToPreferences::dispatch($preferences);
+        MatchPropertiesToPreferences::dispatch($preferences->id);
 
         return response()->json($preferences);
     }
@@ -281,7 +281,7 @@ class User_controller extends Controller
         ]);
 
         // Trigger property matching
-        MatchPropertiesToPreferences::dispatch($preference);
+        MatchPropertiesToPreferences::dispatch($preference->id);
 
         return response()->json($preference, 201);
     }

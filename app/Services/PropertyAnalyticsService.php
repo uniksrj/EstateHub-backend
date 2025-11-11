@@ -3,6 +3,8 @@
 
 namespace App\Services;
 
+use App\Jobs\MatchPropertiesToPreferences;
+use App\Models\BuyerPreference;
 use App\Models\Property;
 use App\Models\PropertyView;
 use App\Models\Inquiry;
@@ -644,7 +646,7 @@ class PropertyAnalyticsService
             })->count();
     }
 
-    public function getAgentClientsStats($agent_id="")
+    public function getAgentClientsStats($agent_id = "")
     {
         $agent = $agent_id ? $agent_id : auth()->user()->id;
 
@@ -665,5 +667,40 @@ class PropertyAnalyticsService
             'active_clients' => $activeClients,
             'new_this_week' => $newClientsThisWeek,
         ];
+    }
+
+    /**
+     * Match new property to all existing preferences
+     */
+    public function matchNewPropertyToPreferences(Property $property)
+    {
+        // Get all active preferences that might match this property
+        $matchingPreferences = BuyerPreference::where('alerts_enabled', true)
+            ->where(function ($query) use ($property) {
+                // Price range match
+                $query->where(function ($q) use ($property) {
+                    $q->whereNull('min_price')
+                        ->orWhere('min_price', '<=', $property->price);
+                })->where(function ($q) use ($property) {
+                    $q->whereNull('max_price')
+                        ->orWhere('max_price', '>=', $property->price);
+                });
+            })
+            ->where(function ($query) use ($property) {
+                // Bedrooms match
+                $query->whereNull('min_bedrooms')
+                    ->orWhere('min_bedrooms', '<=', $property->bedrooms);
+            })
+            ->where(function ($query) use ($property) {
+                // Property type match
+                $query->whereNull('property_type')
+                    ->orWhere('property_type', $property->property_type);
+            })
+            ->get();
+
+        // Trigger matching job for each potential preference
+        foreach ($matchingPreferences as $preference) {
+            MatchPropertiesToPreferences::dispatch($preference->id);
+        }
     }
 }
