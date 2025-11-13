@@ -145,5 +145,9 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::patch('/alerts/{id}/toggle', [User_controller::class, 'toggleAlert']);
     Route::put('/alerts/{id}', [User_controller::class, 'updateAlert']);
     Route::delete('/alerts/{id}', [User_controller::class, 'deleteAlert']);
+
+    // Offers
+    Route::post('/store-offer', [Common_setup::class, 'store_offer_details']);
+    Route::get('/offers', [Common_setup::class, 'get_offers']);
 });
 /**  Buyer Route */

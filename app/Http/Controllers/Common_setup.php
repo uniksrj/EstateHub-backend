@@ -3,15 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Events\ResponseMessage;
+use App\Http\Requests\StoreOfferRequest;
 use App\Models\DealLoss;
 use App\Models\DealPipeline;
 use App\Models\Favorite;
 use App\Models\Inquiry;
 use App\Models\InquiryResponse;
 use App\Models\Property;
+use App\Models\PropertyOffer;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class Common_setup extends Controller
 {
@@ -322,7 +325,7 @@ class Common_setup extends Controller
 
                 // 🔹 Update inquiry status
                 Inquiry::where('id', $inquiryId)->update([
-                    'status' => $request->status, 
+                    'status' => $request->status,
                     'closed_by' => $user->id,
                     'closed_at' => now(),
                     'close_reason' => $request->close_reason ?? null,
@@ -473,5 +476,44 @@ class Common_setup extends Controller
                 'pipelineValue' => $deals->sum('offer_price')
             ]
         ]);
+    }
+
+    public function get_offers()
+    {
+        if (auth()->user()->role_id != 5) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $offers = PropertyOffer::with('property')
+            ->where('buyer_id', auth()->id())
+            ->orderBy('created_at', 'desc')
+            ->get();
+
+        return response()->json(['offers' => $offers]);
+    }
+
+    public function store_offer_details(StoreOfferRequest $request)
+    {
+        if (auth()->user()->role_id != 5) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        try {
+            $validated = $request->validated();
+            $offer = PropertyOffer::create($validated);
+
+            return response()->json([
+                'message' => 'Offer submitted successfully!',
+                'offer' => $offer,
+                'offer_id' => $offer->id
+            ], 201);
+        } catch (\Exception $e) {
+            Log::error('Failed to store offer: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to submit offer. Please try again.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 }
