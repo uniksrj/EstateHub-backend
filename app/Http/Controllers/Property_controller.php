@@ -160,8 +160,9 @@ class Property_controller extends Controller
         $user = auth()->user();
         $properties = Property::with(['agent', 'images', 'favorites'])
             ->withFilters($request->all(), $user)
+            ->where('status', 'for_sale')
             ->orderBy('created_at', 'desc')
-            ->paginate(6);
+            ->paginate(12);
         return response()->json($properties);
     }
 

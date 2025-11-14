@@ -484,7 +484,7 @@ class Common_setup extends Controller
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $offers = PropertyOffer::with('property')
+        $offers = PropertyOffer::with(['agent', 'images', 'property'])
             ->where('buyer_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->get();

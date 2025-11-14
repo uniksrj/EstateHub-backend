@@ -46,6 +46,16 @@ class PropertyOffer extends Model
         return $this->belongsTo(User::class, 'buyer_id');
     }
 
+    public function agent()
+    {
+        return $this->belongsTo(User::class, 'agent_id');
+    }
+
+    public function images()
+    {
+        return $this->hasMany(PropertyImage::class);
+    }
+
     /**
      * Scope for pending offers
      */

@@ -121,7 +121,7 @@ class Property extends Model
 
     public function getViewsCountAttribute()
     {
-        return $this->view_count; // From the cached count
+        return $this->view_count;
     }
 
     public function getRecentViewsAttribute()

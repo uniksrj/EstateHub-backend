@@ -122,6 +122,8 @@ Route::get('/properties', [Property_controller::class, 'get_all_properties']);
 /* General Property details api routes */
 
 
+
+
 /**  Agent Route */
 Route::middleware(['auth:sanctum', 'agent'])->prefix('agent')->group(function () {    
     Route::get('/pipeline', [Common_setup::class, 'get_agent_pipeline_data']);
