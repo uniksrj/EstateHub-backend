@@ -4,10 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class PropertyOffer extends Model
 {
-
+    use SoftDeletes;
+    
     protected $fillable = [
         'property_id',
         'buyer_id',
@@ -53,8 +55,8 @@ class PropertyOffer extends Model
 
     public function images()
     {
-        return $this->hasMany(PropertyImage::class);
-    }
+        return $this->hasMany(PropertyImage::class, 'property_id');
+    }    
 
     /**
      * Scope for pending offers
@@ -86,7 +88,7 @@ class PropertyOffer extends Model
     public function scopeExpired($query)
     {
         return $query->where('expires_at', '<', now())
-                    ->where('status', 'pending');
+            ->where('status', 'pending');
     }
 
     /**
@@ -175,4 +177,5 @@ class PropertyOffer extends Model
     {
         return $this->offer_amount - $this->commission_amount;
     }
+
 }

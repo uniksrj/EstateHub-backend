@@ -479,12 +479,16 @@ class Common_setup extends Controller
     }
 
     public function get_offers()
-    {
-        if (auth()->user()->role_id != 5) {
+    {         
+        if (!in_array(auth()->user()->role_id, [5,3,6])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        $offers = PropertyOffer::with(['agent', 'images', 'property'])
+        $offers = PropertyOffer::with([
+            'agent',
+            'property.agent:id,name,email,phone,avatar,bio',
+            'property.images'
+        ])
             ->where('buyer_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->get();
@@ -513,6 +517,68 @@ class Common_setup extends Controller
             return response()->json([
                 'message' => 'Failed to submit offer. Please try again.',
                 'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    public function handleWithdrawOffer($id, Request $request)
+    {
+        $offer = PropertyOffer::findOrFail($id);
+        $request->validate([
+            'status' => 'required|in:pending,accepted,rejected,counter_offer,expired,withdrawn,cancelled'
+        ]);
+
+        if (auth()->id() !== $offer->buyer_id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $validTransitions = [
+            'pending' => ['cancelled'],
+            'counter_offer' => ['accepted', 'rejected'],
+            'expired' => ['pending'],
+        ];
+
+        if (!in_array($request->status, $validTransitions[$offer->status] ?? [])) {
+            return response()->json([
+                'error' => 'Invalid status transition',
+                'current_status' => $offer->status,
+                'requested_status' => $request->status,
+                'valid_transitions' => $validTransitions[$offer->status] ?? []
+            ], 422);
+        }
+
+        $offer->update([
+            'status' => $request->status,
+            'updated_at' => now()
+        ]);
+
+        return response()->json([
+            'message' => 'Offer status updated successfully',
+            'offer' => $offer
+        ]);
+    }
+
+    public function deleteOffer($id)
+    {
+        DB::beginTransaction();
+        try {
+            $offer = PropertyOffer::find($id);
+            if (!$offer) {
+                return response()->json(['message' => 'Property Offer not found'], 404);
+            }
+            if ($offer->buyer_id !== auth()->id()) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+
+            $offer->delete();
+
+            DB::commit();
+            return response()->json(['message' => 'Property offer deleted successfully']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to delete property',
+                'error' => $e->getMessage()
             ], 500);
         }
     }

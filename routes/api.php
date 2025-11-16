@@ -68,7 +68,6 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
         // Change user status (activate/deactivate)
         Route::patch('/{id}/status', [Auth::class, 'userStatusChange']);
     });
-
 });
 /** Super Admin Routes */
 
@@ -125,9 +124,9 @@ Route::get('/properties', [Property_controller::class, 'get_all_properties']);
 
 
 /**  Agent Route */
-Route::middleware(['auth:sanctum', 'agent'])->prefix('agent')->group(function () {    
+Route::middleware(['auth:sanctum', 'agent'])->prefix('agent')->group(function () {
     Route::get('/pipeline', [Common_setup::class, 'get_agent_pipeline_data']);
-    Route::get('/deal-losses', [Common_setup::class, 'get_agent_deal_losses']); 
+    Route::get('/deal-losses', [Common_setup::class, 'get_agent_deal_losses']);
     Route::post('/deal-losses', [Common_setup::class, 'store_agent_deal_loss']);
     Route::get('/buyers', [Common_setup::class, 'getAgentBuyers']);
 });
@@ -140,7 +139,7 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::put('/preferences/{id}', [User_controller::class, 'updatePreferences']);
     Route::post('/preferences', [User_controller::class, 'storePreferences']);
     Route::delete('/preferences/{id}', [User_controller::class, 'destroy']);
-    
+
     // Alerts
     Route::get('/alerts', [User_controller::class, 'getAlerts']);
     Route::post('/alerts', [User_controller::class, 'storeAlert']);
@@ -151,5 +150,7 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     // Offers
     Route::post('/store-offer', [Common_setup::class, 'store_offer_details']);
     Route::get('/offers', [Common_setup::class, 'get_offers']);
+    Route::patch('/{id}/status', [Common_setup::class, 'handleWithdrawOffer']);
+    Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
 });
 /**  Buyer Route */
