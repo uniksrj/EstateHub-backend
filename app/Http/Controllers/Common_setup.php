@@ -479,19 +479,31 @@ class Common_setup extends Controller
     }
 
     public function get_offers()
-    {         
-        if (!in_array(auth()->user()->role_id, [5,3,6])) {
+    {
+        if (!in_array(auth()->user()->role_id, [5, 3, 6])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
+
+        $user = auth()->user();
+        $userId = $user->id;
+        $userRole = $user->role_id;
 
         $offers = PropertyOffer::with([
             'agent',
             'property.agent:id,name,email,phone,avatar,bio',
-            'property.images'
-        ])
-            ->where('buyer_id', auth()->id())
-            ->orderBy('created_at', 'desc')
-            ->get();
+            'property.images',
+            'buyer:id,name,email,phone'
+        ]);
+
+        if ($userRole === 5) {
+            $offers->where('buyer_id', $userId);
+        } elseif (in_array($userRole, [3, 6])) {
+            $offers->whereHas('property', function ($q) use ($userId) {
+                $q->where('agent_id', $userId);
+            });
+        }
+
+        $offers = $offers->orderBy('created_at', 'desc')->get();
 
         return response()->json(['offers' => $offers]);
     }
@@ -521,16 +533,17 @@ class Common_setup extends Controller
         }
     }
 
-    public function handleWithdrawOffer($id, Request $request)
+    public function updateBuyerOfferStatus($id, Request $request)
     {
         $offer = PropertyOffer::findOrFail($id);
-        $request->validate([
-            'status' => 'required|in:pending,accepted,rejected,counter_offer,expired,withdrawn,cancelled'
-        ]);
 
         if (auth()->id() !== $offer->buyer_id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
+
+        $request->validate([
+            'status' => 'required|in:cancelled,accepted,rejected,pending'
+        ]);
 
         $validTransitions = [
             'pending' => ['cancelled'],
@@ -546,11 +559,75 @@ class Common_setup extends Controller
                 'valid_transitions' => $validTransitions[$offer->status] ?? []
             ], 422);
         }
-
-        $offer->update([
+        $updateData = [
             'status' => $request->status,
-            'updated_at' => now()
+            'updated_at' => now(),
+        ];
+
+        if ($request->status === 'accepted') {
+            $updateData['accepted_at'] = now();
+            $updateData['rejected_at'] = null;
+        } elseif ($request->status === 'rejected') {
+            $updateData['rejected_at'] = now();
+            $updateData['accepted_at'] = null;
+        }
+
+        $offer->update($updateData);
+
+        return response()->json([
+            'message' => 'Offer status updated successfully',
+            'offer' => $offer
         ]);
+    }
+
+    public function updateAgentOfferStatus($id, Request $request)
+    {
+        $user = auth()->user();
+        $offer = PropertyOffer::findOrFail($id);
+
+        if ($user->role_id === 3 && $offer->property->agent_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized for this property'], 403);
+        }
+
+        if ($user->role_id === 6 && $offer->property->user_id !== $user->id) {
+            return response()->json(['error' => 'Unauthorized for this property'], 403);
+        }
+
+        $request->validate([
+            'status' => 'required|in:accepted,rejected,counter_offer',
+            'counter_offer_amount' => 'nullable|numeric|min:1',
+            'counter_offer_message' => 'nullable|string|max:1000'
+        ]);
+
+        $validTransitions = [
+            'pending' => ['accepted', 'rejected', 'counter_offer'],
+            'counter_offer' => ['accepted', 'rejected'],
+        ];
+
+        if (!in_array($request->status, $validTransitions[$offer->status] ?? [])) {
+            return response()->json([
+                'error' => 'Invalid status transition',
+                'current_status' => $offer->status,
+                'requested_status' => $request->status,
+                'valid_transitions' => $validTransitions[$offer->status] ?? []
+            ], 422);
+        }
+        $updateData = [
+            'status' => $request->status,
+            'counter_offer_amount' => $request->counter_offer_amount,
+            'counter_offer_message' => $request->counter_offer_message,
+            'updated_at' => now(),
+        ];
+
+        if ($request->status === 'accepted') {
+            $updateData['accepted_at'] = now();
+            $updateData['rejected_at'] = null;
+        } elseif ($request->status === 'rejected') {
+            $updateData['rejected_at'] = now();
+            $updateData['accepted_at'] = null;
+        }
+
+        $offer->update($updateData);
 
         return response()->json([
             'message' => 'Offer status updated successfully',

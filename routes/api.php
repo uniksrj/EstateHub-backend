@@ -150,7 +150,18 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     // Offers
     Route::post('/store-offer', [Common_setup::class, 'store_offer_details']);
     Route::get('/offers', [Common_setup::class, 'get_offers']);
-    Route::patch('/{id}/status', [Common_setup::class, 'handleWithdrawOffer']);
+    Route::patch('/{id}/status', [Common_setup::class, 'updateBuyerOfferStatus']);
+    Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
+});
+
+Route::prefix('agent')->middleware(['auth:api'])->group(function () {
+    // Preferences
+    Route::get('/preferences', [User_controller::class, 'getPreferences']);   
+
+    // Offers
+    Route::post('/store-offer', [Common_setup::class, 'store_offer_details']);
+    Route::get('/offers', [Common_setup::class, 'get_offers']);
+    Route::patch('/{id}/status', [Common_setup::class, 'updateAgentOfferStatus']);
     Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
 });
 /**  Buyer Route */
