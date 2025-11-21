@@ -20,6 +20,10 @@ class UserActivitySeeder extends Seeder
         $userIds = User::inRandomOrder()->limit(5)->pluck('id');
         $propertyIds = Property::inRandomOrder()->limit(5)->pluck('id');
 
+         if ($userIds->isEmpty() || $propertyIds->isEmpty()) {
+            info("UserActivitySeeder skipped → Missing users or properties.");
+            return;
+        }
         $activities = [
             [
                 'user_id' => $userIds->random(),

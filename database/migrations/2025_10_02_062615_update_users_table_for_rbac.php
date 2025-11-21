@@ -11,20 +11,38 @@ return new class extends Migration
      */
     public function up(): void
     {
+         if (Schema::hasColumn('users', 'role')) {
         Schema::table('users', function (Blueprint $table) {
-            // Remove old role column if exists
-            if (Schema::hasColumn('users', 'role')) {
-                $table->dropColumn('role');
-            }
-            
-            // Add new RBAC fields
-            $table->foreignId('role_id')->nullable()->constrained('roles')->onDelete('set null');
-            $table->boolean('is_active')->default(true);
-            $table->boolean('is_verified')->default(false);
-            $table->timestamp('last_login_at')->nullable();
-            $table->string('timezone')->default('UTC');
-            $table->json('settings')->nullable();
+            $table->dropColumn('role');
         });
+    }
+
+    Schema::table('users', function (Blueprint $table) {
+
+        if (!Schema::hasColumn('users', 'role_id')) {
+            $table->foreignId('role_id')->nullable()->constrained('roles')->onDelete('set null');
+        }
+
+        if (!Schema::hasColumn('users', 'is_active')) {
+            $table->boolean('is_active')->default(true);
+        }
+
+        if (!Schema::hasColumn('users', 'is_verified')) {
+            $table->boolean('is_verified')->default(false);
+        }
+
+        if (!Schema::hasColumn('users', 'last_login_at')) {
+            $table->timestamp('last_login_at')->nullable();
+        }
+
+        if (!Schema::hasColumn('users', 'timezone')) {
+            $table->string('timezone')->default('UTC');
+        }
+
+        if (!Schema::hasColumn('users', 'settings')) {
+            $table->json('settings')->nullable();
+        }
+    });
     }
 
     /**
