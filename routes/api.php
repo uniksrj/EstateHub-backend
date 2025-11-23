@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth;
 use App\Http\Controllers\Common_setup;
+use App\Http\Controllers\DealController;
 use App\Http\Controllers\Property_controller;
 use App\Http\Controllers\User_controller;
 use Illuminate\Http\Request;
@@ -120,9 +121,6 @@ Route::get('/properties/{id}', [Property_controller::class, 'get_property_detail
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
 /* General Property details api routes */
 
-
-
-
 /**  Agent Route */
 Route::middleware(['auth:sanctum', 'agent'])->prefix('agent')->group(function () {
     Route::get('/pipeline', [Common_setup::class, 'get_agent_pipeline_data']);
@@ -153,7 +151,9 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::patch('/{id}/status', [Common_setup::class, 'updateBuyerOfferStatus']);
     Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
 });
+/**  Buyer Route */
 
+/** Agent Route */
 Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     // Preferences
     Route::get('/preferences', [User_controller::class, 'getPreferences']);   
@@ -163,5 +163,10 @@ Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     Route::get('/offers', [Common_setup::class, 'get_offers']);
     Route::patch('/{id}/status', [Common_setup::class, 'updateAgentOfferStatus']);
     Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
+    
+    // Deal
+    Route::get('/deal', [DealController::class, 'getAgentDeals']);
+    Route::get('/get_document_details/{id}', [DealController::class, 'get_document_details']);
+    Route::post('/store_document', [DealController::class, 'store_document']);
 });
-/**  Buyer Route */
+/** Agent Route */
