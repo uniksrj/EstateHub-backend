@@ -654,6 +654,30 @@ class Common_setup extends Controller
 
         $offer->update($updateData);
 
+        if ($request->status === 'accepted') {
+            $property = Property::find($offer->property_id);
+
+            $deal = Deal::create([
+                'offer_id' => $offer->id,
+                'property_id' => $offer->property_id,
+                'buyer_id' => $offer->buyer_id,
+                'seller_id' => $property->agent_id,
+                'agent_id' => $property->agent_id,
+                'final_price' => $offer->counter_offer_amount ?? $offer->offer_amount,
+                'status' => 'under_contract',
+                'current_step' => 'contract_generation',
+                'progress_percentage' => 0,
+                'accepted_date' => now(),
+                'expected_closing_date' => now()->addDays(45),
+                'inspection_deadline' => now()->addDays(10),
+                'mortgage_deadline' => now()->addDays(30),
+                'appraisal_deadline' => now()->addDays(20)
+            ]);
+
+            // Send notifications
+            // Notification::send(...)
+        }
+
         return response()->json([
             'message' => 'Offer status updated successfully',
             'offer' => $offer

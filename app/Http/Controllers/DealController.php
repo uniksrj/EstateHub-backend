@@ -153,7 +153,8 @@ class DealController extends Controller
 
         return response()->json([
             'deal' => $deal,
-            'message' => 'Step marked as complete'
+            'message' => 'Step marked as complete',
+            'percentage' => $progress
         ]);
     }  
 

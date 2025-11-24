@@ -123,8 +123,8 @@ class DealProgressService
             'contract_generation' => 'earnest_money',
             'earnest_money' => 'inspection',
             'inspection' => 'mortgage_processing',
-            'mortgage' => 'closing_preparation',
-            'closing' => 'closed'
+            'mortgage_processing' => 'closing_preparation',
+            'closed' => 'closed'
         ];
 
         return $steps[$currentStep] ?? 'closed';
@@ -136,8 +136,8 @@ class DealProgressService
             'contract_generation' => ['purchase_agreement', 'counter_offer', 'property_disclosures'],
             'earnest_money' => ['emd_receipt', 'wire_instructions', 'funds_verification'],
             'inspection' => ['home_inspection', 'pest_inspection'],
-            'mortgage' => ['loan_application', 'underwriting_approval', 'appraisal_report', 'title_report'],
-            'closing' => ['closing_disclosure', 'settlement_statement', 'deed', 'wire_confirmation']
+            'mortgage_processing' => ['loan_application', 'underwriting_approval', 'appraisal_report', 'title_report'],
+            'closed' => ['closing_disclosure', 'settlement_statement', 'deed', 'wire_confirmation']
         ];
 
         return $stepDocuments[$stepKey] ?? [];
