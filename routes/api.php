@@ -168,5 +168,6 @@ Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     Route::get('/deal', [DealController::class, 'getAgentDeals']);
     Route::get('/get_document_details/{id}', [DealController::class, 'get_document_details']);
     Route::post('/store_document', [DealController::class, 'store_document']);
+    Route::post('/deals/{deal_id}/complete-step/{stepKey}', [DealController::class, 'checkAndUpdateStepProgress']);
 });
 /** Agent Route */

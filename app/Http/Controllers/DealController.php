@@ -108,6 +108,23 @@ class DealController extends Controller
             'message' => 'Document uploaded successfully',
             'document' => $documents
         ], 201);
+    }    
+
+    public function checkAndUpdateStepProgress($deal_id, $stepKey)
+    {
+        $requiredDocs = $this->progressService->getRequiredDocumentsForStep($stepKey);
+
+        $uploadedDocs = DealDocument::where('deal_id', $deal_id)
+            ->whereIn('document_type', $requiredDocs)
+            ->get();
+        
+        $allUploaded = collect($requiredDocs)->every(function ($docType) use ($uploadedDocs) {
+            return $uploadedDocs->where('document_type', $docType)->isNotEmpty();
+        });
+
+        if ($allUploaded) {            
+            $this->markStepComplete($deal_id, $stepKey);
+        }
     }
 
     public function markStepComplete($dealId, $stepKey)
@@ -131,71 +148,14 @@ class DealController extends Controller
             'progress_percentage' => $progress,
             'status' => $nextStep === 'closed' ? 'closed' : $deal->status
         ]);
-
-        // Send notifications
+        
         $this->sendStepCompletionNotifications($deal, $stepKey);
 
         return response()->json([
             'deal' => $deal,
             'message' => 'Step marked as complete'
         ]);
-    }
-
-    private function checkAndUpdateStepProgress($deal, $stepKey)
-    {
-        $requiredDocs = $this->getRequiredDocumentsForStep($stepKey);
-
-        $uploadedDocs = DealDocument::where('deal_id', $deal->id)
-            ->where('step_key', $stepKey)
-            ->whereIn('document_type', $requiredDocs)
-            ->get();
-
-        // Check if all required docs are uploaded
-        $allUploaded = collect($requiredDocs)->every(function ($docType) use ($uploadedDocs) {
-            return $uploadedDocs->where('document_type', $docType)->isNotEmpty();
-        });
-
-        if ($allUploaded) {
-            // Auto-complete step or wait for manual completion
-            // $this->markStepComplete($deal->id, $stepKey);
-        }
-    }
-
-    private function getRequiredDocumentsForStep($stepKey)
-    {
-        $stepDocuments = [
-            'contract_generation' => ['purchase_agreement', 'disclosure_forms'],
-            'earnest_money' => ['earnest_money_receipt', 'proof_of_funds'],
-            'inspection' => ['inspection_report', 'repair_requests'],
-            'mortgage_processing' => ['loan_application', 'credit_report', 'appraisal'],
-            'closing_preparation' => ['closing_disclosure', 'title_insurance']
-        ];
-
-        return $stepDocuments[$stepKey] ?? [];
-    }
-
-    private function getSignersForDocument($deal, $sharedWith)
-    {
-        $signers = [];
-
-        if (in_array('buyer', $sharedWith)) {
-            $signers[] = [
-                'id' => $deal->buyer_id,
-                'role' => 'buyer',
-                'email' => $deal->buyer->email
-            ];
-        }
-
-        if (in_array('seller', $sharedWith)) {
-            $signers[] = [
-                'id' => $deal->seller_id,
-                'role' => 'seller',
-                'email' => $deal->seller->email
-            ];
-        }
-
-        return $signers;
-    }
+    }  
 
     private function sendStepCompletionNotifications($deal, $stepKey)
     {

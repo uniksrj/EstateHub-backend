@@ -90,4 +90,27 @@ class ESignatureService
             ]);
         }
     }
+
+    public function getSignersForDocument($deal, $sharedWith)
+    {
+        $signers = [];
+
+        if (in_array('buyer', $sharedWith)) {
+            $signers[] = [
+                'id' => $deal->buyer_id,
+                'role' => 'buyer',
+                'email' => $deal->buyer->email
+            ];
+        }
+
+        if (in_array('seller', $sharedWith)) {
+            $signers[] = [
+                'id' => $deal->seller_id,
+                'role' => 'seller',
+                'email' => $deal->seller->email
+            ];
+        }
+
+        return $signers;
+    }
 }
