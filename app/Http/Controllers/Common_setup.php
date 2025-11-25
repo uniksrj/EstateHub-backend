@@ -13,6 +13,7 @@ use App\Models\InquiryResponse;
 use App\Models\Property;
 use App\Models\PropertyOffer;
 use App\Models\User;
+use App\Services\ActivityService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -577,6 +578,7 @@ class Common_setup extends Controller
 
         if ($request->status === 'accepted') {
             $property = Property::find($offer->property_id);
+            $buyerAgent = auth()->user();
 
             $deal = Deal::create([
                 'offer_id' => $offer->id,
@@ -595,6 +597,21 @@ class Common_setup extends Controller
                 'appraisal_deadline' => now()->addDays(20)
             ]);
 
+            ActivityService::log(
+                $deal,
+                'offer_accepted',
+                'accepted',
+                'Purchase Offer',
+                'offer_acceptance',
+                'completed',
+                $buyerAgent,
+                null,
+                [
+                    'offer_amount' => $deal->final_price,
+                    'property_address' => $property->address,
+                    'acceptance_date' => now()->toDateString()
+                ]
+            );
             // Send notifications
             // Notification::send(...)
         }
@@ -656,6 +673,7 @@ class Common_setup extends Controller
 
         if ($request->status === 'accepted') {
             $property = Property::find($offer->property_id);
+            $buyerAgent = auth()->user();
 
             $deal = Deal::create([
                 'offer_id' => $offer->id,
@@ -673,6 +691,22 @@ class Common_setup extends Controller
                 'mortgage_deadline' => now()->addDays(30),
                 'appraisal_deadline' => now()->addDays(20)
             ]);
+
+            ActivityService::log(
+                $deal,
+                'offer_accepted',
+                'accepted',
+                'Purchase Offer',
+                'offer_acceptance',
+                'completed',
+                $buyerAgent,
+                null,
+                [
+                    'offer_amount' => $deal->final_price,
+                    'property_address' => $property->address,
+                    'acceptance_date' => now()->toDateString()
+                ]
+            );
 
             // Send notifications
             // Notification::send(...)

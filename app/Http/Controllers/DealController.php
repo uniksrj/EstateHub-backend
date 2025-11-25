@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Activity;
 use App\Models\Deal;
 use App\Models\DealDocument;
+use App\Services\ActivityService;
 use App\Services\DealProgressService;
 use App\Services\ESignatureService;
 use Illuminate\Support\Facades\Storage;
@@ -11,7 +13,7 @@ use Symfony\Component\HttpFoundation\Request;
 
 class DealController extends Controller
 {
-    public function __construct(private DealProgressService $progressService, protected ESignatureService $eSignatureService) {}
+    public function __construct(private DealProgressService $progressService, protected ESignatureService $eSignatureService, protected ActivityService $activity_service) {}
 
     public function getAgentDeals()
     {
@@ -92,6 +94,8 @@ class DealController extends Controller
             'signed_at' => null,
         ]);
 
+        ActivityService::logDocumentUpload($deal_data, $document, auth()->user());
+
         return response()->json([
             'message' => 'Document uploaded successfully',
             'document' => $document
@@ -108,7 +112,7 @@ class DealController extends Controller
             'message' => 'Document uploaded successfully',
             'document' => $documents
         ], 201);
-    }    
+    }
 
     public function checkAndUpdateStepProgress($deal_id, $stepKey)
     {
@@ -117,12 +121,12 @@ class DealController extends Controller
         $uploadedDocs = DealDocument::where('deal_id', $deal_id)
             ->whereIn('document_type', $requiredDocs)
             ->get();
-        
+
         $allUploaded = collect($requiredDocs)->every(function ($docType) use ($uploadedDocs) {
             return $uploadedDocs->where('document_type', $docType)->isNotEmpty();
         });
 
-        if ($allUploaded) {            
+        if ($allUploaded) {
             $this->markStepComplete($deal_id, $stepKey);
         }
     }
@@ -148,7 +152,7 @@ class DealController extends Controller
             'progress_percentage' => $progress,
             'status' => $nextStep === 'closed' ? 'closed' : $deal->status
         ]);
-        
+        ActivityService::logStepCompleted($deal, $stepKey, auth()->user());
         $this->sendStepCompletionNotifications($deal, $stepKey);
 
         return response()->json([
@@ -156,11 +160,47 @@ class DealController extends Controller
             'message' => 'Step marked as complete',
             'percentage' => $progress
         ]);
-    }  
+    }
 
     private function sendStepCompletionNotifications($deal, $stepKey)
     {
         // Send email notifications to relevant parties
-        // Implement your notification logic here
+    }
+
+    public function get_activity_details(Request $request)
+    {
+        $query = Activity::with(['user', 'deal', 'document'])
+            ->orderBy('created_at', 'desc');
+
+        if ($request->has('deal_id')) {
+            $query->where('deal_id', $request->deal_id);
+        }
+
+        if ($request->has('type')) {
+            $query->where('type', $request->type);
+        }
+
+        $activities = $query->limit(50)->get();
+
+        return response()->json([
+            'activities' => $activities->map(function ($activity) {
+                return $this->activity_service->formatActivity($activity);
+            })
+        ]);
+    }
+
+    public function forDeal(Deal $deal)
+    {
+        $activities = Activity::with(['user', 'document'])
+            ->where('deal_id', $deal->id)
+            ->orderBy('created_at', 'desc')
+            ->limit(50)
+            ->get();
+
+        return response()->json([
+            'activities' => $activities->map(function ($activity) {
+                return $this->activity_service->formatActivity($activity);
+            })
+        ]);
     }
 }
