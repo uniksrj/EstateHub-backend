@@ -41,6 +41,11 @@ class Activity extends Model
         return $this->belongsTo(DealDocument::class);
     }
 
+    public function property(): BelongsTo
+    {
+        return $this->belongsTo(Property::class);
+    }
+
     // Helper method to get formatted time
     public function getTimeAgoAttribute()
     {

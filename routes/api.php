@@ -156,18 +156,20 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
 /** Agent Route */
 Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     // Preferences
-    Route::get('/preferences', [User_controller::class, 'getPreferences']);   
+    Route::get('/preferences', [User_controller::class, 'getPreferences']);
 
     // Offers
     Route::post('/store-offer', [Common_setup::class, 'store_offer_details']);
     Route::get('/offers', [Common_setup::class, 'get_offers']);
     Route::patch('/{id}/status', [Common_setup::class, 'updateAgentOfferStatus']);
     Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
-    
+
     // Deal
     Route::get('/deal', [DealController::class, 'getAgentDeals']);
     Route::get('/get_document_details/{id}', [DealController::class, 'get_document_details']);
     Route::post('/store_document', [DealController::class, 'store_document']);
     Route::post('/deals/{deal_id}/complete-step/{stepKey}', [DealController::class, 'checkAndUpdateStepProgress']);
+    Route::get('/activities', [DealController::class, 'get_activity_details']);
+    Route::get('/deals/{deal}/activities', [DealController::class, 'forDeal']);
 });
 /** Agent Route */

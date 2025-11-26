@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Activity;
 use App\Models\Deal;
+use App\Models\Property;
 use App\Models\User;
 
 class ActivityService
@@ -51,14 +52,13 @@ class ActivityService
         return $messages[$type] ?? "{$action} {$item}";
     }
 
-    // Specific helper methods for common activities
     public static function logDocumentUpload(Deal $deal, $document, $user = null)
     {
         return self::log(
             $deal,
             'document_upload',
             'uploaded',
-            $document->original_name,
+            $document->document_name,
             $deal->current_step,
             'completed',
             $user,
@@ -138,9 +138,9 @@ class ActivityService
     }
 
     public function formatActivity(Activity $activity)
-    {
+    {        
         $typeConfig = $this->getActivityTypeConfig($activity->type);
-
+        $property = Property::findOrFail($activity->deal->property_id);
         return [
             'id' => $activity->id,
             'type' => $activity->type,
@@ -149,7 +149,7 @@ class ActivityService
             'status' => $activity->status,
             'icon' => $typeConfig['icon'],
             'color' => $typeConfig['color'],
-            'property' => $activity->deal->property_address ?? $activity->deal->address ?? 'Unknown Property',
+            'property' => $property->address ?? 'Unknown Property',
             'user' => $activity->user->name ?? 'System',
             'action' => $activity->action,
             'item' => $activity->item,
