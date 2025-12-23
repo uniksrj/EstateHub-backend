@@ -117,22 +117,22 @@ class DealController extends Controller
     public function checkAndUpdateStepProgress($deal_id, $stepKey)
     {
         $requiredDocs = $this->progressService->getRequiredDocumentsForStep($stepKey);
-
+        
         $uploadedDocs = DealDocument::where('deal_id', $deal_id)
             ->whereIn('document_type', $requiredDocs)
             ->get();
-
+        
         $allUploaded = collect($requiredDocs)->every(function ($docType) use ($uploadedDocs) {
             return $uploadedDocs->where('document_type', $docType)->isNotEmpty();
         });
 
         if ($allUploaded) {
-            $this->markStepComplete($deal_id, $stepKey);
+          return $this->markStepComplete($deal_id, $stepKey);
         }
     }
 
     public function markStepComplete($dealId, $stepKey)
-    {
+    {        
         $deal = Deal::findOrFail($dealId);
 
         $stepProgress = [
@@ -143,9 +143,9 @@ class DealController extends Controller
             'closing_preparation' => 90,
             'closed' => 100
         ];
-
+        
         $nextStep = $this->progressService->getNextStep($stepKey);
-        $progress = $stepProgress[$nextStep] ?? $deal->progress_percentage;
+        $progress = $stepProgress[$nextStep];
 
         $deal->update([
             'current_step' => $nextStep,

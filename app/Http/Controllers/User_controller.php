@@ -193,7 +193,7 @@ class User_controller extends Controller
     {
         $validated = $request->validate([
             'schedule_id' => 'required|integer|exists:property_tours,id',
-            'status' => 'required|string|in:pending,approved,completed,cancelled',
+            'status' => 'required|string|in:pending,approved,completed,cancelled,rejected',
         ]);
 
         $schedule = PropertyTours::find($validated['schedule_id']);
@@ -207,6 +207,10 @@ class User_controller extends Controller
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
+        if ($validated['status'] === 'rejected') {            
+            $schedule->rejected_at = now();
+            $schedule->rejected_by = $user->id;
+        }
         $schedule->status = $validated['status'];
         $schedule->updated_at = now();
         $schedule->save();
@@ -247,7 +251,7 @@ class User_controller extends Controller
                     'alerts_enabled' => true,
                     'alert_frequency' => 'instant'
                 ]);
-                 MatchPropertiesToPreferences::dispatch($preference);
+                MatchPropertiesToPreferences::dispatch($preference);
             }
         } else {
             $preference = BuyerPreference::where('user_id', auth()->id())
