@@ -23,7 +23,7 @@ class DealProgressService
         return $steps[$currentStep] ?? 'Next Step';
     }
 
-    public function getStepDeadline(string $currentStep, Carbon $acceptedDate): string
+    public function getStepDeadline(string $currentStep, Carbon $acceptedDate,  int $extensions = 0,  Carbon $lastExtendedDate = null): string
     {
         $deadlines = [
             'contract_generation' => $acceptedDate->copy()->addDays(3),
@@ -36,6 +36,14 @@ class DealProgressService
         ];
 
         $deadline = $deadlines[$currentStep] ?? $acceptedDate->copy()->addDays(45);
+        if ($lastExtendedDate) {
+            return $lastExtendedDate->format('Y-m-d');
+        }
+
+        if ($extensions > 0) {
+            $deadline->addDays($extensions * 3);
+        }
+
         return $deadline->format('Y-m-d');
     }
 
@@ -141,5 +149,50 @@ class DealProgressService
         ];
 
         return $stepDocuments[$stepKey] ?? [];
+    }
+
+    public function getDeadlineStatus(
+        string $currentStep,
+        Carbon $acceptedDate,
+        int $deadlineExtensions = 0,
+        ?Carbon $lastExtendedDate = null
+    ): string {
+        $today = Carbon::today();
+
+        if ($lastExtendedDate) {
+            $deadlineDate = $lastExtendedDate;
+        } else {
+            $deadlineDate = $this->calculateDeadline($currentStep, $acceptedDate, $deadlineExtensions);
+        }
+
+        if ($today->greaterThan($deadlineDate)) {
+            return 'missed';
+        }
+
+        if ($deadlineExtensions > 0) {
+            return 'extended';
+        }
+
+        return 'on_track';
+    }
+
+    private function calculateDeadline($currentStep, $acceptedDate, $extensions)
+    {
+        $deadlines = [
+            'contract_generation' => $acceptedDate->copy()->addDays(3),
+            'earnest_money' => $acceptedDate->copy()->addDays(5),
+            'inspection' => $acceptedDate->copy()->addDays(10),
+            'mortgage_processing' => $acceptedDate->copy()->addDays(30),
+            'appraisal' => $acceptedDate->copy()->addDays(20),
+            'closing_preparation' => $acceptedDate->copy()->addDays(40),
+            'final_walkthrough' => $acceptedDate->copy()->addDays(44),
+        ];
+        $deadline = $deadlines[$currentStep] ?? $acceptedDate->copy()->addDays(45);
+
+        if ($extensions > 0) {
+            $deadline->addDays($extensions * 3);
+        }
+
+        return $deadline;
     }
 }

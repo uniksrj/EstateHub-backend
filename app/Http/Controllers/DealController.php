@@ -8,6 +8,7 @@ use App\Models\DealDocument;
 use App\Services\ActivityService;
 use App\Services\DealProgressService;
 use App\Services\ESignatureService;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -31,9 +32,15 @@ class DealController extends Controller
                     'price' => '$' . number_format($deal->final_price),
                     'acceptedDate' => $deal->accepted_date->format('Y-m-d'),
                     'nextStep' => $this->progressService->getNextStepDescription($deal->current_step),
-                    'deadline' => $this->progressService->getStepDeadline($deal->current_step, $deal->accepted_date),
+                    'deadline' => $this->progressService->getStepDeadline($deal->current_step, $deal->accepted_date, $deal->deadline_extensions ?? 0, $deal->last_extension_date ?? null),
                     'priority' => $this->progressService->getPriority($deal->current_step, $deal->accepted_date),
-                    'progress' => $deal->progress_percentage
+                    'progress' => $deal->progress_percentage,
+                    'deadline_status' =>  $this->progressService->getDeadlineStatus(
+                        $deal->current_step,
+                        $deal->accepted_date,
+                        $deal->deadline_extensions ?? 0,
+                        $deal->last_extension_date ? Carbon::parse($deal->last_extension_date) : null
+                    ),
                 ];
             });
 
@@ -117,22 +124,22 @@ class DealController extends Controller
     public function checkAndUpdateStepProgress($deal_id, $stepKey)
     {
         $requiredDocs = $this->progressService->getRequiredDocumentsForStep($stepKey);
-        
+
         $uploadedDocs = DealDocument::where('deal_id', $deal_id)
             ->whereIn('document_type', $requiredDocs)
             ->get();
-        
+
         $allUploaded = collect($requiredDocs)->every(function ($docType) use ($uploadedDocs) {
             return $uploadedDocs->where('document_type', $docType)->isNotEmpty();
         });
 
         if ($allUploaded) {
-          return $this->markStepComplete($deal_id, $stepKey);
+            return $this->markStepComplete($deal_id, $stepKey);
         }
     }
 
     public function markStepComplete($dealId, $stepKey)
-    {        
+    {
         $deal = Deal::findOrFail($dealId);
 
         $stepProgress = [
@@ -143,7 +150,7 @@ class DealController extends Controller
             'closing_preparation' => 90,
             'closed' => 100
         ];
-        
+
         $nextStep = $this->progressService->getNextStep($stepKey);
         $progress = $stepProgress[$nextStep];
 
@@ -202,5 +209,56 @@ class DealController extends Controller
                 return $this->activity_service->formatActivity($activity);
             })
         ]);
+    }
+
+    public function update_deal(Request $request, $deal_id)
+    {
+        echo "you are here";
+        echo "<pre>";
+        print_r($request->all());
+        echo "<pre>";
+    }
+
+    public function add_deadline_extension(Request $request, $deal_id)
+    {
+        $request->validate([
+            'days' => 'required|integer|min:1|max:30',
+            'reason' => 'required|string|min:5'
+        ]);
+
+        try {
+            $deal = Deal::findOrFail($deal_id);
+
+            $currentDeadline = $this->progressService->getStepDeadline(
+                $deal->current_step,
+                $deal->accepted_date,
+                $deal->deadline_extensions ?? 0
+            );
+
+            $today = Carbon::today();
+            if ($today->greaterThan(Carbon::parse($currentDeadline))) {
+                $newDeadline = $today->addDays($request->days);
+            } else {
+                $newDeadline = Carbon::parse($currentDeadline)->addDays($request->days);
+            }
+
+            $deal->deadline_extensions = ($deal->deadline_extensions ?? 0) + 1;
+            $deal->last_extension_date = $newDeadline;
+            $deal->extension_reason = $request->reason;
+            $deal->deadline_status = 'extended';
+            $deal->save();
+
+            return response()->json([
+                "success" => true,
+                "message" => "Added {$request->days}-day extension",
+                "new_deadline" => $deal->deadline,
+                "extended_until" => now()->addDays($request->days)->format('Y-m-d')
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                "message" => "Failed to add extension: " . $th->getMessage()
+            ], 500);
+        }
     }
 }

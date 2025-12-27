@@ -32,7 +32,13 @@ class Deal extends Model
         'lender_name',
         'inspection_company',
         'special_terms',
-        'notes'
+        'notes',
+        'deadline_extensions',
+        'last_extension_date',
+        'extension_reason',
+        'deadline_status',
+        'priority_override',
+        'next_step_override'
     ];
 
     protected $casts = [
@@ -44,8 +50,10 @@ class Deal extends Model
         'inspection_deadline' => 'date',
         'mortgage_deadline' => 'date',
         'appraisal_deadline' => 'date',
+        'last_extension_date' => 'datetime',
+        'deadline_extensions' => 'integer'
     ];
-    
+
     public function offer(): BelongsTo
     {
         return $this->belongsTo(PropertyOffer::class, 'offer_id');
@@ -75,7 +83,7 @@ class Deal extends Model
     {
         return $this->hasMany(DealDocument::class);
     }
-    
+
     public function scopeUnderContract($query)
     {
         return $query->where('status', 'under_contract');
@@ -85,7 +93,7 @@ class Deal extends Model
     {
         return $query->whereIn('status', ['under_contract', 'pending_sale', 'closing']);
     }
-    
+
     public function markStepComplete(string $nextStep): void
     {
         $steps = [
