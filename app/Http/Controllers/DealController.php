@@ -187,7 +187,7 @@ class DealController extends Controller
             $query->where('type', $request->type);
         }
 
-        $activities = $query->limit(50)->get();
+        $activities = $query->limit(100)->get();
 
         return response()->json([
             'activities' => $activities->map(function ($activity) {
