@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Activity;
+use App\Models\Deadline_extensions;
 use App\Models\Deal;
 use App\Models\Property;
 use App\Models\User;
@@ -279,5 +280,54 @@ class ActivityService
             null,
             ['expired_at' => now()->toISOString()]
         );
+    }
+
+    public static function logDeadlineExtension(Deal $deal, $extensionDays, $reason = null, $user = null)
+    {
+        return self::log(
+            $deal,
+            'deadline_extended',
+            'extended',
+            'Deadline Extension',
+            $deal->current_step,
+            'completed',
+            $user,
+            null,
+            [
+                'extension_days' => $extensionDays,
+                'reason' => $reason
+            ]
+        );
+    }
+
+    public static function logDeadlineMissed(Deal $deal, $deadlineType, $user = null)
+    {
+        return self::log(
+            $deal,
+            'deadline_missed',
+            'missed',
+            "{$deadlineType} Deadline Missed",
+            $deal->current_step,
+            'completed',
+            $user,
+            null,
+            ['deadline_type' => $deadlineType]
+        );
+    }
+
+    public function store_deadExtension_record($deal_id, $extended_by, $extension_days, $reason, $extension_type, $old_deadline = null, $new_deadline = null)
+    {
+
+        return Deadline_extensions::create([
+            'deal_id' => $deal_id,
+            'extended_by' => $extended_by,
+            'reason' => $reason,
+            'extension_type' => $extension_type,
+            'extension_days' => $extension_days,
+            'old_deadline' => $old_deadline,
+            'new_deadline' => $new_deadline,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
     }
 }

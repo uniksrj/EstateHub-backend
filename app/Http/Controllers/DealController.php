@@ -234,7 +234,6 @@ class DealController extends Controller
                 $deal->accepted_date,
                 $deal->deadline_extensions ?? 0
             );
-
             $today = Carbon::today();
             if ($today->greaterThan(Carbon::parse($currentDeadline))) {
                 $newDeadline = $today->addDays($request->days);
@@ -247,6 +246,10 @@ class DealController extends Controller
             $deal->extension_reason = $request->reason;
             $deal->deadline_status = 'extended';
             $deal->save();
+
+            $this->activity_service->store_deadExtension_record($deal->id, auth()->id(), $request->days, $request->reason, 'deadline', $currentDeadline, $newDeadline->format('Y-m-d'));
+            ActivityService::logDeadlineExtension($deal, $request->days, $request->reason, auth()->user());
+
 
             return response()->json([
                 "success" => true,
