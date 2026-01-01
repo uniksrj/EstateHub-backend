@@ -10,7 +10,7 @@ use App\Services\DealProgressService;
 use App\Services\ESignatureService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
-use Symfony\Component\HttpFoundation\Request;
+use Illuminate\Http\Request;
 
 class DealController extends Controller
 {
@@ -213,10 +213,32 @@ class DealController extends Controller
 
     public function update_deal(Request $request, $deal_id)
     {
-        echo "you are here";
-        echo "<pre>";
-        print_r($request->all());
-        echo "<pre>";
+        if (!in_array($request->user()->role_id, [3])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $request->validate([
+            'progress' => 'sometimes|integer|min:0|max:100',
+            'status' => 'sometimes|string|max:255',
+            'next_step' => 'sometimes|string|max:255',
+            'priority' => 'sometimes|in:low,medium,high',
+        ]);
+
+        $deal = Deal::findOrFail($deal_id);
+        if ($request->has('progress')) {
+            $deal->progress_percentage = $request->progress;
+        }
+        if ($request->has('status')) {
+            // $deal->status = $request->status;
+        }
+        if ($request->has('next_step')) {
+            $deal->current_step = $request->next_step;
+        }
+        $deal->save();
+        return response()->json([
+            'message' => 'Deal updated successfully',
+            'deal' => $deal
+        ], 200);
     }
 
     public function add_deadline_extension(Request $request, $deal_id)
@@ -263,5 +285,81 @@ class DealController extends Controller
                 "message" => "Failed to add extension: " . $th->getMessage()
             ], 500);
         }
+    }
+
+    public function update_earnest_deal(Request $request, $deal_id)
+    {
+        if (!in_array($request->user()->role_id, [3])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $deal = Deal::findOrFail($deal_id);
+
+        $request->validate([
+            'earnest_amount' => 'required|numeric|min:0',
+            'earnest_payment_method' => 'required|string|max:255',
+            'earnest_status' => 'required|in:pending,received',
+            'earnest_due_date' => 'required|date',
+            'earnest_received_date' => 'nullable|date|required_if:earnest_status,received'
+        ]);
+
+        $deal->earnest_money_deposit = $request->earnest_amount;
+        $deal->earnest_payment_method = $request->earnest_payment_method;
+        $deal->earnest_status = $request->earnest_status;
+        $deal->earnest_due_date = $request->earnest_due_date;
+        $deal->earnest_received_date = $request->earnest_status === 'received' ? $request->earnest_received_date : null;
+
+        $deal->save();
+
+        return response()->json([
+            'message' => 'Earnest money details updated successfully',
+            'deal' => $deal
+        ], 200);
+    }
+
+    public function update_documents_details(Request $request, $deal_id)
+    {
+        if (!in_array($request->user()->role_id, [3])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $request->validate([
+            'document_types' => 'required|array',
+            'notes' => 'nullable|array'
+        ]);
+        $deal = Deal::findOrFail($deal_id);
+        $dealDocuments = DealDocument::where('deal_id', $deal->id)->get();
+
+        $existingDocTypes = $dealDocuments->pluck('document_type')->toArray();
+        $documentTypes = $request->document_types;
+        $notes = $request->notes;
+
+        $documentTypes = array_values(
+            array_diff($request->document_types, $existingDocTypes)
+        );
+
+        foreach ($documentTypes as $docType) {
+            $stepKey = $this->progressService->getStepFromDocumentName($docType);
+            $noteTxt = collect($notes)->firstWhere('stage', $stepKey)['text'] ?? '';
+            DealDocument::create([
+                'deal_id' => $deal->id,
+                'property_offer_id' => $deal->offer_id,
+                'uploaded_by' => auth()->id(),
+                'document_type' => $docType,
+                'category' => $this->progressService->getCategoryFromDocumentType($docType),
+                'notes' => $noteTxt,
+                'file_url' => '',
+                'file_size' => 0,
+                'file_type' => '',
+                'document_name' => '',
+                'shared_with' => ['seller', 'buyer'],
+                'status' => 'marked_received',
+                'marked_received_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Document details updated successfully'
+        ], 200);
     }
 }

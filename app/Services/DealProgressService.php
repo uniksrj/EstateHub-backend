@@ -195,4 +195,37 @@ class DealProgressService
 
         return $deadline;
     }
+
+    public function getStepFromDocumentName($documentType)
+    {
+        $documentStepMap = [
+            'purchase_agreement' => 'contract_generation',
+            'counter_offer' => 'contract_generation',
+            'emd_receipt' => 'earnest_money',
+            'wire_instructions' => 'earnest_money',
+            'funds_verification' => 'earnest_money',
+            'home_inspection' => 'inspection',
+            'pest_inspection' => 'inspection',
+            'loan_application' => 'mortgage_processing',
+            'appraisal_report' => 'mortgage_processing',
+            'underwriting_approval' => 'mortgage_processing',
+            'appraisal_report' => 'appraisal',
+            'title_report' => 'mortgage_processing',
+            'deed' => 'closed',
+            'property_disclosures' => 'contract_generation',
+            'settlement_statement' => 'closed',
+            'wire_confirmation' => 'closed',
+            'commission_agreement' => 'closed',
+            'roof_inspection' => 'inspection',
+            'foundation_inspection' => 'inspection',
+            'addendum' => 'contract_generation',
+            'repair_addendum' => 'inspection',
+            'closing_disclosure' => 'closing_preparation',
+            'settlement_statement' => 'closing_preparation',
+            'deed' => 'closing_preparation',
+            'wire_confirmation' => 'closing_preparation',
+        ];
+
+        return $documentStepMap[$documentType] ?? null;
+    }
 }

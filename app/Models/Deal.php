@@ -38,7 +38,9 @@ class Deal extends Model
         'extension_reason',
         'deadline_status',
         'priority_override',
-        'next_step_override'
+        'next_step_override',
+        'priority_override',
+        'next_step_override',        
     ];
 
     protected $casts = [

@@ -21,13 +21,17 @@ class DealDocument extends Model
         'shared_with',
         'description',
         'requires_signature',
-        'signed_at'
+        'signed_at',
+        'marked_received_at',
+        'status',
+        'notes'
     ];
 
     protected $casts = [
         'shared_with' => 'array',
         'requires_signature' => 'boolean',
-        'signed_at' => 'datetime'
+        'signed_at' => 'datetime',
+        'marked_received_at' => 'datetime',
     ];
     
     public function deal(): BelongsTo

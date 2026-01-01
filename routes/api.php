@@ -173,5 +173,7 @@ Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     Route::get('/deals/{deal}/activities', [DealController::class, 'forDeal']);
     Route::post('/update_deal/{deal_id}', [DealController::class, 'update_deal']);
     Route::post('/add_deadline_extension/{deal_id}', [DealController::class, 'add_deadline_extension']);
+    Route::post('/update_earnest_deal/{deal_id}', [DealController::class, 'update_earnest_deal']);
+    Route::post('/update_documents_details/{deal_id}', [DealController::class, 'update_documents_details']);
 });
 /** Agent Route */
