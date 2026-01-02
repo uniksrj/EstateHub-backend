@@ -220,7 +220,7 @@ class DealController extends Controller
         $request->validate([
             'progress' => 'sometimes|integer|min:0|max:100',
             'status' => 'sometimes|string|max:255',
-            'next_step' => 'sometimes|string|max:255',
+            'nextStep' => 'sometimes|string|max:255',
             'priority' => 'sometimes|in:low,medium,high',
         ]);
 
@@ -231,8 +231,8 @@ class DealController extends Controller
         if ($request->has('status')) {
             // $deal->status = $request->status;
         }
-        if ($request->has('next_step')) {
-            $deal->current_step = $request->next_step;
+        if ($request->has('nextStep')) {
+            $deal->current_step = $request->nextStep;
         }
         $deal->save();
         return response()->json([
