@@ -478,4 +478,54 @@ class Property_controller extends Controller
         $featuresArray = array_filter($featuresArray);
         return $featuresArray;
     }
+
+    public function get_property_by_type(Request $request)
+    {
+        $user = auth()->user();
+        $type = $request->type;
+
+        $query = Property::with(['agent', 'images', 'favorites'])
+            ->withFilters($request->all(), $user);
+
+        // 🔥 FOR SALE
+        if ($type === 'for-sale') {
+            $query->where('status', 'for_sale');
+        }
+
+        // 🔥 FOR RENT
+        elseif ($type === 'for-rent') {
+            $query->where('status', 'for_rent');
+        }
+
+        // 🔥 NEW
+        elseif ($type === 'new') {
+            $query->where('status', 'for_sale')
+                ->where('created_at', '>=', now()->subDays(7));
+        }
+
+        // 🔥 LUXURY (Top 10% AFTER filters)
+        elseif ($type === 'luxury') {
+
+            $baseQuery = (clone $query)->where('status', 'for_sale');
+
+            $count = $baseQuery->count();
+
+            if ($count > 0) {
+
+                $limit = max(1, ceil($count * 0.1));
+
+                $minLuxuryPrice = $baseQuery
+                    ->orderByDesc('price')
+                    ->skip($limit - 1)
+                    ->value('price');
+
+                $query->where('status', 'for_sale')
+                    ->where('price', '>=', $minLuxuryPrice);
+            }
+        }
+
+        return response()->json(
+            $query->orderByDesc('created_at')->paginate(12)
+        );
+    }
 }

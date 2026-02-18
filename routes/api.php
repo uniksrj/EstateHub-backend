@@ -119,6 +119,7 @@ Route::post('/reset-password', function (Request $request) {
 Route::post('/properties/{id}', [Property_controller::class, 'trackView']);
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
+Route::get('/propertiesByType', [Property_controller::class, 'get_property_by_type']);
 /* General Property details api routes */
 
 /**  Agent Route */
