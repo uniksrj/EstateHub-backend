@@ -70,7 +70,7 @@ class Auth extends Controller
         }
 
         if ($request->user_type === 'seller') {
-            $rules['selling_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible';
+            $rules['selling_timeline'] = 'nullable|in:immediately,1_month,3_months,6_months,1_year,flexible,just_researching';
             $rules['property_address'] = 'nullable|string|max:255';
         }
         $validatedData = $request->validate($rules);
