@@ -75,6 +75,13 @@ class PropertyOffer extends Model
     }
 
     /**
+     * Connection between offer and loan applications (if any)
+     */
+    public function loanApplications(){
+        return $this->hasMany(LoanApplications::class, 'offer_id');
+    }
+
+    /**
      * Scope for rejected offers
      */
     public function scopeRejected($query)

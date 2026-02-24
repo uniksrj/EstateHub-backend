@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth;
 use App\Http\Controllers\Common_setup;
 use App\Http\Controllers\DealController;
+use App\Http\Controllers\Loan;
 use App\Http\Controllers\Property_controller;
 use App\Http\Controllers\User_controller;
 use Illuminate\Http\Request;
@@ -151,6 +152,9 @@ Route::prefix('buyer')->middleware(['auth:api'])->group(function () {
     Route::get('/offers', [Common_setup::class, 'get_offers']);
     Route::patch('/{id}/status', [Common_setup::class, 'updateBuyerOfferStatus']);
     Route::delete('/{id}/delete', [Common_setup::class, 'deleteOffer']);
+
+    // Loan Application
+    Route::post('/save_property_loan_details', [Loan::class, 'save_property_loan_details']);
 });
 /**  Buyer Route */
 
