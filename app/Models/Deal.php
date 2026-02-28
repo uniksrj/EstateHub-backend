@@ -86,6 +86,10 @@ class Deal extends Model
         return $this->hasMany(DealDocument::class);
     }
 
+    public function loanApplication(): HasMany
+    {
+        return $this->hasMany(LoanApplications::class);
+    }
     public function scopeUnderContract($query)
     {
         return $query->where('status', 'under_contract');

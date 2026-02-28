@@ -494,7 +494,8 @@ class Common_setup extends Controller
             'agent',
             'property.agent:id,name,email,phone,avatar,bio',
             'property.images',
-            'buyer:id,name,email,phone'
+            'buyer:id,name,email,phone',
+            'loanApplications:id,offer_id,loan_amount,loan_term,interest_rate,status,created_at'
         ]);
 
         if ($userRole === 5) {
