@@ -15,24 +15,70 @@ class User_controller extends Controller
 {
     public function __construct() {}
 
-    public function get_user_profile_details(Request $request) {}
+    public function get_user_profile_details(Request $request)
+    {
+        return response()->json([
+            'user' => $request->user()
+        ]);
+    }
 
     public function update_user_profile_details(Request $request)
     {
 
         $user = $request->user();
 
+        foreach (['notification_preferences', 'role_profile'] as $jsonField) {
+            if ($request->filled($jsonField) && is_string($request->input($jsonField))) {
+                $decodedValue = json_decode($request->input($jsonField), true);
+
+                if (json_last_error() === JSON_ERROR_NONE) {
+                    $request->merge([$jsonField => $decodedValue]);
+                }
+            }
+        }
+
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
             'phone' => 'sometimes|nullable|string|max:20',
             'bio' => 'sometimes|nullable|string',
+            'timezone' => 'sometimes|nullable|string|max:100',
             'avatar' => 'sometimes|nullable|image|max:2048',
+            'location' => 'sometimes|nullable|string|max:255',
+            'website' => 'sometimes|nullable|string|max:255',
+            'linkedin' => 'sometimes|nullable|string|max:255',
+            'twitter' => 'sometimes|nullable|string|max:255',
+            'notification_preferences' => 'sometimes|nullable|array',
+            'role_profile' => 'sometimes|nullable|array',
         ]);
 
         if ($request->hasFile('avatar')) {
             $path = $request->file('avatar')->store('avatars', 'public');
             $validated['avatar'] = $path;
         }
+
+        $settings = is_array($user->settings) ? $user->settings : [];
+        $profileSettings = is_array($settings['profile'] ?? null) ? $settings['profile'] : [];
+
+        foreach (['location', 'website', 'linkedin', 'twitter'] as $field) {
+            if (array_key_exists($field, $validated)) {
+                $profileSettings[$field] = $validated[$field];
+                unset($validated[$field]);
+            }
+        }
+
+        $settings['profile'] = $profileSettings;
+
+        if (array_key_exists('notification_preferences', $validated)) {
+            $settings['notifications'] = $validated['notification_preferences'];
+            unset($validated['notification_preferences']);
+        }
+
+        if (array_key_exists('role_profile', $validated)) {
+            $settings['role_profile'] = $validated['role_profile'];
+            unset($validated['role_profile']);
+        }
+
+        $validated['settings'] = $settings;
 
         $user->update($validated);
 
