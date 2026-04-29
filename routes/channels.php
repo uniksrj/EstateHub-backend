@@ -7,7 +7,7 @@ Broadcast::routes([
     'middleware' => ['auth:sanctum'] 
 ]);
 Broadcast::channel('inquiry.{inquiryId}', function ($user, $inquiryId) {  
-    $inquiry = Inquiry::with('property')->find($inquiryId);
+    $inquiry = Inquiry::find($inquiryId);
 
     // If No inquiry find
     if (! $inquiry) {

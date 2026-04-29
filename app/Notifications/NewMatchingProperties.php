@@ -22,7 +22,7 @@ class NewMatchingProperties extends Notification implements ShouldQueue
         $this->properties = $properties;
         $this->alert = $alert;
     }
-
+ 
     public function via($notifiable)
     {
         return ['mail', 'database'];

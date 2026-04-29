@@ -239,7 +239,7 @@ class User_controller extends Controller
     {
         $validated = $request->validate([
             'schedule_id' => 'required|integer|exists:property_tours,id',
-            'status' => 'required|string|in:pending,approved,completed,cancelled,rejected',
+            'status' => 'required|string|in:pending,approved,completed,cancelled,rejected,reschedule_requested',
         ]);
 
         $schedule = PropertyTours::find($validated['schedule_id']);
