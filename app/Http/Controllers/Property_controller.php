@@ -7,6 +7,7 @@ use App\Models\PropertyImage;
 use App\Models\PropertyOffer;
 use App\Models\PropertyView;
 use App\Models\UserActivity;
+use App\Services\CloudinaryService;
 use App\Services\PropertyAnalyticsService;
 use App\Services\UserMetricsService;
 use Carbon\Carbon;
@@ -16,11 +17,17 @@ use Illuminate\Support\Facades\DB;
 class Property_controller extends Controller
 {
     protected PropertyAnalyticsService $propertyService;
+    protected CloudinaryService $cloudinaryService;
     protected $userActivityService;
-    public function __construct(PropertyAnalyticsService $propertyService, UserMetricsService $userActivityService)
+    public function __construct(
+        PropertyAnalyticsService $propertyService,
+        UserMetricsService $userActivityService,
+        CloudinaryService $cloudinaryService
+    )
     {
         $this->propertyService = $propertyService;
         $this->userActivityService = $userActivityService;
+        $this->cloudinaryService = $cloudinaryService;
     }
 
     public function index()
@@ -51,15 +58,19 @@ class Property_controller extends Controller
                 'has_pool' => 'integer|boolean',
                 'has_garden' => 'integer|boolean',
                 'has_garage' => 'integer|boolean',
-                'has_parking' => ' integer|boolean',
+                'has_parking' => 'integer|boolean',
                 'has_security' => 'integer|boolean',
                 'has_air_conditioning' => 'integer|boolean',
                 'has_heating' => 'integer|boolean',
-                'images.*' => 'nullable|image|max:10240',
+                'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:10240',
             ]);
             if (isset($validatedData['features']) && is_string($validatedData['features'])) {
 
                 $validatedData['features'] = json_encode($this->convert_features_to_json($validatedData['features']) ?? []);
+            }
+
+            if(empty($validatedData['garage'])){
+                $validatedData['garage'] = 0;
             }
 
             $property = Property::create([
@@ -71,11 +82,15 @@ class Property_controller extends Controller
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $path = $image->store('property_images', 'public');
+                    $uploadedImage = $this->cloudinaryService->uploadPropertyImage($image, $property->slug, $index);
                     PropertyImage::create([
                         'property_id' => $property->id,
-                        'image_path' => $path,
+                        'image_path' => $uploadedImage['secure_url'],
+                        'cloudinary_secure_url' => $uploadedImage['secure_url'],
+                        'cloudinary_public_id' => $uploadedImage['public_id'],
                         'is_primary' => $index === 0,
+                        'caption' => $property->title,
+                        'order_index' => $index,
                     ]);
                 }
             }
@@ -146,9 +161,13 @@ class Property_controller extends Controller
         return response()->json($properties);
     }
 
-    public function get_property_details($id)
+    public function get_property_details($idOrSlug)
     {
-        $property = Property::with(['agent', 'images'])->find($id);
+        $property = Property::with(['agent', 'images'])
+            ->where('id', $idOrSlug)
+            ->orWhere('slug', $idOrSlug)
+            ->first();
+
         if (!$property) {
             return response()->json(['message' => 'Property not found'], 404);
         }
@@ -197,13 +216,13 @@ class Property_controller extends Controller
                 'has_pool' => 'integer|boolean',
                 'has_garden' => 'integer|boolean',
                 'has_garage' => 'integer|boolean',
-                'has_parking' => ' integer|boolean',
+                'has_parking' => 'integer|boolean',
                 'has_security' => 'integer|boolean',
                 'has_air_conditioning' => 'integer|boolean',
                 'has_heating' => 'integer|boolean',
                 'status' => 'sometimes|in:available,sold,rented,for_sale,for_rent',
                 'featured' => 'sometimes|boolean',
-                'images.*' => 'nullable|image|max:10240',
+                'images.*' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:10240',
             ]);
 
             if (isset($validatedData['features']) && is_string($validatedData['features'])) {
@@ -219,11 +238,15 @@ class Property_controller extends Controller
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $path = $image->store('property_images', 'public');
+                    $uploadedImage = $this->cloudinaryService->uploadPropertyImage($image, $property->slug, $index);
                     PropertyImage::create([
                         'property_id' => $property->id,
-                        'image_path' => $path,
+                        'image_path' => $uploadedImage['secure_url'],
+                        'cloudinary_secure_url' => $uploadedImage['secure_url'],
+                        'cloudinary_public_id' => $uploadedImage['public_id'],
                         'is_primary' => $index === 0,
+                        'caption' => $property->title,
+                        'order_index' => $index,
                     ]);
                 }
             }
@@ -297,7 +320,8 @@ class Property_controller extends Controller
 
     public function trackView(Request $request, $property_id)
     {
-        $property = Property::findOrFail($property_id);
+        $property = Property::where('id', $property_id)->orWhere('slug', $property_id)->firstOrFail();
+        $property_id = $property->id;
 
         $recentview = PropertyView::where('property_id', $property_id)
             ->where('session_id', session()->getid())

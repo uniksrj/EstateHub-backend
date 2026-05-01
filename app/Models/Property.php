@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class Property extends Model
 {
@@ -13,6 +14,7 @@ class Property extends Model
 
     protected $fillable = [
         'title',
+        'slug',
         'description',
         'price',
         'property_type',
@@ -275,11 +277,35 @@ class Property extends Model
         parent::boot();
 
         static::creating(function ($property) {
+            if (empty($property->slug)) {
+                $property->slug = static::buildUniqueSlug($property);
+            }
+
             if (empty($property->property_code)) {
                 $nextId = Property::max('id') + 1;
                 $property->property_code = 'PR-' . str_pad($nextId, 5, '0', STR_PAD_LEFT);
             }
         });
+
+        static::updating(function ($property) {
+            if ($property->isDirty(['title', 'city', 'state']) && empty($property->getOriginal('slug'))) {
+                $property->slug = static::buildUniqueSlug($property);
+            }
+        });
+    }
+
+    protected static function buildUniqueSlug(Property $property): string
+    {
+        $base = Str::slug(collect([$property->title, $property->city, $property->state])->filter()->implode(' '));
+        $base = $base ?: 'property';
+        $slug = $base;
+        $counter = 2;
+
+        while (static::where('slug', $slug)->when($property->exists, fn ($query) => $query->whereKeyNot($property->id))->exists()) {
+            $slug = $base.'-'.$counter++;
+        }
+
+        return $slug;
     }
 
     public function purchases()
