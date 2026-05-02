@@ -74,7 +74,7 @@ class Property extends Model
 
     public function favorites()
     {
-        return $this->hasMany(Favorite::class);
+        return $this->hasMany(Favorite::class)->where('status', true);
     }
 
     public function getPrimaryImageAttribute()
@@ -103,7 +103,8 @@ class Property extends Model
             ->when($filters['bathrooms'] ?? false, fn($q, $baths) => $q->where('bathrooms', '>=', $baths))
             ->when($filters['isUserFavorite'] ?? false, function ($q) use ($user) {
                 $q->whereHas('favorites', function ($subQuery) use ($user) {
-                    $subQuery->where('user_id', $user->id);
+                    $subQuery->where('user_id', $user->id)
+                        ->where('status', true);
                 });
             })
             ->when($filters['location'] ?? false, function ($q, $search) {

@@ -34,6 +34,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('properties/{id}', [Property_controller::class, 'update_property']);
     Route::delete('properties/{id}', [Property_controller::class, 'delete_property']);
     Route::post('/properties/toggle-favorite', [Common_setup::class, 'toggleFavorite']);
+    Route::get('/properties/{id}/favorite', [Common_setup::class, 'checkFavorite']);
     Route::get('/propertiesList', [Property_controller::class, 'get_property_list_by_userID']);
     Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
     Route::post('/user/store-inquiry', [Common_setup::class, 'store_buyer_inquiry']);

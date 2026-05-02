@@ -33,22 +33,47 @@ class Common_setup extends Controller
     public function toggleFavorite(Request $request)
     {
         $propertyId = $request->input('property_id');
+
+        $get_property = Property::where('id', $propertyId)->orWhere('slug', $propertyId)->first();
+        if (!$get_property) {
+            return response()->json(['error' => 'Property not found'], 404);
+        }
+
         $user = $request->user();
         $favorite = Favorite::where([
             'user_id' => $user->id,
-            'property_id' => $propertyId
+            'property_id' => $get_property->id
         ])->first();
+
         if ($favorite) {
-            $favorite =  $favorite->toArray();
-            Favorite::where('id', $favorite['id'])->delete();
-            $isFavorite = false;
+            $isFavorite = !$favorite->status;
+            $favorite->update([
+                'status' => $isFavorite,
+            ]);
         } else {
             Favorite::create([
                 'user_id' => $user->id,
-                'property_id' => $propertyId
+                'property_id' => $get_property->id,
+                'status' => true,
             ]);
             $isFavorite = true;
         }
+        return response()->json(['is_favorite' => $isFavorite]);
+    }
+
+    public function checkFavorite(Request $request, $propertyId)
+    {
+        $property = Property::where('id', $propertyId)->orWhere('slug', $propertyId)->first();
+        if (!$property) {
+            return response()->json(['error' => 'Property not found'], 404);
+        }
+
+        $isFavorite = Favorite::where([
+            'user_id' => $request->user()->id,
+            'property_id' => $property->id,
+            'status' => true,
+        ])->exists();
+
         return response()->json(['is_favorite' => $isFavorite]);
     }
 

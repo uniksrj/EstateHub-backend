@@ -9,9 +9,9 @@ use Illuminate\Notifications\Notifiable;
 class Favorite extends Model
 {
     use HasFactory, Notifiable;
-    const UPDATED_AT = null;
+
     protected $fillable = [
-        'user_id', 'property_id', 
+        'user_id', 'property_id', 'status',
     ];
 
     protected $hidden = [
@@ -21,6 +21,7 @@ class Favorite extends Model
     protected $casts = [
         'user_id' => 'integer',
         'property_id' => 'integer',
+        'status' => 'boolean',
     ];
 
     public function properties(){
