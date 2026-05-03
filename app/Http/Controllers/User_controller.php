@@ -8,12 +8,18 @@ use App\Models\BuyerPreference;
 use App\Models\Favorite;
 use App\Models\PropertyAlert;
 use App\Models\PropertyTours;
+use App\Services\CloudinaryService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class User_controller extends Controller
 {
-    public function __construct() {}
+    protected CloudinaryService $cloudinaryService;
+
+    public function __construct(CloudinaryService $cloudinaryService)
+    {
+        $this->cloudinaryService = $cloudinaryService;
+    }
 
     public function get_user_profile_details(Request $request)
     {
@@ -52,8 +58,8 @@ class User_controller extends Controller
         ]);
 
         if ($request->hasFile('avatar')) {
-            $path = $request->file('avatar')->store('avatars', 'public');
-            $validated['avatar'] = $path;
+            $uploadedAvatar = $this->cloudinaryService->uploadUserAvatar($request->file('avatar'), $user->id);
+            $validated['avatar'] = $uploadedAvatar['secure_url'];
         }
 
         $settings = is_array($user->settings) ? $user->settings : [];

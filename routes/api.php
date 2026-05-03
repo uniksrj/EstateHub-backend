@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth;
+use App\Http\Controllers\BetaFeedbackController;
 use App\Http\Controllers\Common_setup;
 use App\Http\Controllers\DealController;
 use App\Http\Controllers\Loan;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\Password;
 /** Authentication Routes */
 Route::post('/auth/register', [Auth::class, 'register']);
 Route::post('/auth/login', [Auth::class, 'login']);
+Route::post('/beta-feedback', [BetaFeedbackController::class, 'store']);
 /** Authentication Routes */
 
 /** User Handle Auth Routes */
@@ -51,6 +53,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
 /** Super Admin Routes */
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
+    Route::get('/beta-feedback', [BetaFeedbackController::class, 'index']);
+    Route::patch('/beta-feedback/{feedback}/status', [BetaFeedbackController::class, 'updateStatus']);
 
     // User Management Routes
     Route::prefix('users')->group(function () {

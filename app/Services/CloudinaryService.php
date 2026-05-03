@@ -11,6 +11,21 @@ class CloudinaryService
 {
     public function uploadPropertyImage(UploadedFile $image, string $slug, int $index): array
     {
+        return $this->uploadImage($image, Str::slug($slug).'-'.($index + 1).'-'.Str::random(8));
+    }
+
+    public function uploadUserAvatar(UploadedFile $image, int|string $userId): array
+    {
+        return $this->uploadImage($image, 'user-'.$userId.'-avatar-'.Str::random(8), 'avatars');
+    }
+
+    public function uploadFeedbackScreenshot(UploadedFile $image): array
+    {
+        return $this->uploadImage($image, 'feedback-screenshot-'.Str::random(12), 'beta-feedback');
+    }
+
+    private function uploadImage(UploadedFile $image, string $publicId, ?string $subFolder = null): array
+    {
         $cloudName = config('cloudinary.cloud_name');
         $apiKey = config('cloudinary.api_key');
         $apiSecret = config('cloudinary.api_secret');
@@ -21,7 +36,10 @@ class CloudinaryService
 
         $timestamp = time();
         $folder = trim(config('cloudinary.folder'), '/');
-        $publicId = Str::slug($slug).'-'.($index + 1).'-'.Str::random(8);
+
+        if ($subFolder) {
+            $folder = trim($folder.'/'.$subFolder, '/');
+        }
 
         $params = [
             'folder' => $folder,
