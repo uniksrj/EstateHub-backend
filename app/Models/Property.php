@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class Property extends Model
@@ -20,6 +21,10 @@ class Property extends Model
         'property_type',
         'status',
         'featured',
+        'is_boosted',
+        'boost_type',
+        'boost_starts_at',
+        'boost_expires_at',
         'address',
         'city',
         'state',
@@ -48,6 +53,9 @@ class Property extends Model
     protected $casts = [
         'price' => 'decimal:2',
         'featured' => 'boolean',
+        'is_boosted' => 'boolean',
+        'boost_starts_at' => 'datetime',
+        'boost_expires_at' => 'datetime',
         'latitude' => 'decimal:8',
         'longitude' => 'decimal:8',
         'bedrooms' => 'integer',
@@ -60,6 +68,10 @@ class Property extends Model
         'has_security' => 'boolean',
         'has_air_conditioning' => 'boolean',
         'has_heating' => 'boolean',
+    ];
+
+    protected $appends = [
+        'is_boost_active',
     ];
 
     public function agent()
@@ -91,6 +103,44 @@ class Property extends Model
     public function scopeFeatured($query)
     {
         return $query->where('featured', true);
+    }
+
+    public function scopeBoostActive($query)
+    {
+        $now = now();
+
+        return $query->where('is_boosted', true)
+            ->whereNotNull('boost_starts_at')
+            ->whereNotNull('boost_expires_at')
+            ->where('boost_starts_at', '<=', $now)
+            ->where('boost_expires_at', '>=', $now);
+    }
+
+    public function scopeBoostedFirst($query)
+    {
+        $now = now()->toDateTimeString();
+
+        return $query
+            ->orderByRaw(
+                "CASE
+                    WHEN is_boosted = 1
+                        AND boost_starts_at IS NOT NULL
+                        AND boost_expires_at IS NOT NULL
+                        AND boost_starts_at <= ?
+                        AND boost_expires_at >= ?
+                    THEN 0
+                    ELSE 1
+                END",
+                [$now, $now]
+            )
+            ->orderByRaw(
+                "CASE boost_type
+                    WHEN 'homepage' THEN 0
+                    WHEN 'premium' THEN 1
+                    WHEN 'basic' THEN 2
+                    ELSE 3
+                END"
+            );
     }
 
     public function scopeWithFilters($query, $filters, $user)
@@ -125,6 +175,17 @@ class Property extends Model
     public function getViewsCountAttribute()
     {
         return $this->view_count;
+    }
+
+    public function getIsBoostActiveAttribute(): bool
+    {
+        if (!$this->is_boosted || !$this->boost_starts_at || !$this->boost_expires_at) {
+            return false;
+        }
+
+        $now = Carbon::now();
+
+        return $this->boost_starts_at->lte($now) && $this->boost_expires_at->gte($now);
     }
 
     public function getRecentViewsAttribute()

@@ -39,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/properties/{id}/favorite', [Common_setup::class, 'checkFavorite']);
     Route::get('/propertiesList', [Property_controller::class, 'get_property_list_by_userID']);
     Route::get('/seller/dashboard', [Property_controller::class, 'getDashboardData']);
+    Route::post('/boost-property', [Property_controller::class, 'boost_property']);
     Route::post('/user/store-inquiry', [Common_setup::class, 'store_buyer_inquiry']);
     Route::get('/inquiries', [Common_setup::class, 'list_inquiries_by_user']);
     Route::get('/inquiries/{inquiryId}', [Common_setup::class, 'getInquiry']);
@@ -127,6 +128,7 @@ Route::post('/properties/{id}', [Property_controller::class, 'trackView']);
 Route::get('/properties/{id}', [Property_controller::class, 'get_property_details']);
 Route::get('/properties', [Property_controller::class, 'get_all_properties']);
 Route::get('/propertiesByType', [Property_controller::class, 'get_property_by_type']);
+Route::get('/boost-plans', [Property_controller::class, 'get_boost_plans']);
 /* General Property details api routes */
 
 /**  Agent Route */

@@ -13,6 +13,7 @@ use App\Services\UserMetricsService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class Property_controller extends Controller
 {
@@ -146,7 +147,8 @@ class Property_controller extends Controller
             ->with(['agent', 'images'])
             // ->active()
             ->withFilters($request->all())
-            ->orderBy('created_at', 'desc')
+            ->boostedFirst()
+            ->orderByDesc('created_at')
             ->paginate(6);
         return response()->json($properties);
     }
@@ -156,7 +158,8 @@ class Property_controller extends Controller
         $properties = Property::with(['agent', 'images'])
             ->active()
             ->withFilters($request->all())
-            ->orderBy('created_at', 'desc')
+            ->boostedFirst()
+            ->orderByDesc('created_at')
             ->paginate(12);
         return response()->json($properties);
     }
@@ -180,7 +183,8 @@ class Property_controller extends Controller
         $properties = Property::with(['agent', 'images', 'favorites'])
             ->withFilters($request->all(), $user)
             ->where('status', 'for_sale')
-            ->orderBy('created_at', 'desc')
+            ->boostedFirst()
+            ->orderByDesc('created_at')
             ->paginate(12);
         return response()->json($properties);
     }
@@ -303,7 +307,8 @@ class Property_controller extends Controller
     {
         $properties = Property::with(['agent', 'images'])
             ->withFilters($request->all(), auth()->user())
-            ->orderBy('created_at', 'desc')
+            ->boostedFirst()
+            ->orderByDesc('created_at')
             ->get();
 
         $metrics = $this->propertyService->getMetricsDetails();
@@ -379,7 +384,8 @@ class Property_controller extends Controller
             'offers'
         ])
             ->where('agent_id', auth()->id())
-            ->orderBy('created_at', 'desc')
+            ->boostedFirst()
+            ->orderByDesc('created_at')
             ->paginate(10);
 
         // Enhance each property with calculated analytics
@@ -549,7 +555,76 @@ class Property_controller extends Controller
         }
 
         return response()->json(
-            $query->orderByDesc('created_at')->paginate(12)
+            $query
+                ->boostedFirst()
+                ->orderByDesc('created_at')
+                ->paginate(12)
         );
+    }
+
+    public function get_boost_plans()
+    {
+        return response()->json([
+            'plans' => $this->boostPlans(),
+        ]);
+    }
+
+    public function boost_property(Request $request)
+    {
+        $validated = $request->validate([
+            'property_id' => ['required', 'integer', 'exists:properties,id'],
+            'boost_type' => ['required', Rule::in(['basic', 'premium', 'homepage'])],
+        ]);
+
+        $property = Property::findOrFail($validated['property_id']);
+        $user = $request->user();
+
+        $canManageProperty = (int) $property->agent_id === (int) $user->id || in_array((int) $user->role_id, [1, 2], true);
+        if (!$canManageProperty) {
+            return response()->json(['message' => 'You are not authorized to boost this property.'], 403);
+        }
+
+        $plan = collect($this->boostPlans())->firstWhere('type', $validated['boost_type']);
+        $startsAt = now();
+        $expiresAt = (clone $startsAt)->addDays($plan['duration_days']);
+
+        $property->update([
+            'is_boosted' => true,
+            'boost_type' => $validated['boost_type'],
+            'boost_starts_at' => $startsAt,
+            'boost_expires_at' => $expiresAt,
+        ]);
+
+        return response()->json([
+            'message' => 'Property boost activated successfully.',
+            'property' => $property->fresh(['images', 'agent']),
+        ]);
+    }
+
+    protected function boostPlans(): array
+    {
+        return [
+            [
+                'type' => 'basic',
+                'name' => 'Basic',
+                'duration_days' => 3,
+                'price' => 19,
+                'description' => 'Priority placement in listing results for 3 days.',
+            ],
+            [
+                'type' => 'premium',
+                'name' => 'Premium',
+                'duration_days' => 7,
+                'price' => 39,
+                'description' => 'Stronger listing priority for 7 days.',
+            ],
+            [
+                'type' => 'homepage',
+                'name' => 'Homepage',
+                'duration_days' => 7,
+                'price' => 59,
+                'description' => 'Top listing priority plus homepage highlight for 7 days.',
+            ],
+        ];
     }
 }
