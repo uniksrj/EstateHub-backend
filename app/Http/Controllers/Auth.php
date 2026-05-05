@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\SendEmailOtp;
+use App\Models\EmailOtp;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserPreference;
@@ -11,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth as FacadesAuth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules;
 use Illuminate\Support\Facades\Validator;
@@ -19,6 +22,11 @@ use Illuminate\Support\Str;
 
 class Auth extends Controller
 {
+    private const OTP_EXPIRES_IN_MINUTES = 10;
+    private const OTP_RESEND_COOLDOWN_SECONDS = 60;
+    private const OTP_MAX_VERIFY_ATTEMPTS = 5;
+    private const OTP_MAX_REQUESTS_PER_HOUR = 5;
+
     private $preferenceFields = [
         'buyer' => ['preferred_location', 'min_budget', 'max_budget', 'property_type', 'bedrooms', 'bathrooms', 'move_in_timeline', 'newsletter'],
         'investor' => ['preferred_location', 'min_budget', 'max_budget', 'property_type', 'bedrooms', 'bathrooms', 'move_in_timeline', 'newsletter'],
@@ -78,6 +86,121 @@ class Auth extends Controller
         return $validatedData;
     }
 
+    public function send_email_otp(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email|max:255',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+
+        $latestOtp = EmailOtp::where('email', $normalizedEmail)
+            ->latest()
+            ->first();
+
+        if ($latestOtp && $latestOtp->created_at->diffInSeconds(now()) < self::OTP_RESEND_COOLDOWN_SECONDS) {
+            return response()->json([
+                'message' => 'Please wait a minute before requesting another code.',
+                'success' => false,
+            ], 429);
+        }
+
+        $recentOtpRequests = EmailOtp::where('email', $normalizedEmail)
+            ->where('created_at', '>=', now()->subHour())
+            ->count();
+
+        if ($recentOtpRequests >= self::OTP_MAX_REQUESTS_PER_HOUR) {
+            return response()->json([
+                'message' => 'Too many verification requests. Please try again later.',
+                'success' => false,
+            ], 429);
+        }
+
+        if (User::where('email', $normalizedEmail)->exists()) {
+            return response()->json([
+                'message' => 'If this email can be used for registration, a verification code has been sent.',
+                'success' => true,
+            ]);
+        }
+
+        $plainOtp = (string) random_int(100000, 999999);
+
+        EmailOtp::where('email', $normalizedEmail)->delete();
+
+        EmailOtp::create([
+            'email' => $normalizedEmail,
+            'otp' => Hash::make($plainOtp),
+            'expires_at' => now()->addMinutes(self::OTP_EXPIRES_IN_MINUTES),
+            'attempts' => 0,
+        ]);
+
+        Mail::to($normalizedEmail)->send(new SendEmailOtp($plainOtp, $normalizedEmail));
+
+        return response()->json([
+            'message' => 'If this email can be used for registration, a verification code has been sent.',
+            'success' => true,
+        ]);
+    }
+
+    public function verify_email_otp(Request $request)
+    {
+        $validated = $request->validate([
+            'email' => 'required|string|email|max:255',
+            'otp' => 'required|digits:6',
+        ]);
+
+        $normalizedEmail = strtolower(trim($validated['email']));
+        $emailOtp = EmailOtp::where('email', $normalizedEmail)
+            ->whereNull('verified_at')
+            ->latest()
+            ->first();
+
+        if (
+            !$emailOtp ||
+            $emailOtp->expires_at->isPast() ||
+            $emailOtp->attempts >= self::OTP_MAX_VERIFY_ATTEMPTS
+        ) {
+            return response()->json([
+                'message' => 'The verification code is invalid or has expired. Please request a new code.',
+                'success' => false,
+            ], 422);
+        }
+
+        $emailOtp->increment('attempts');
+        $emailOtp->refresh();
+
+        if (!Hash::check($validated['otp'], $emailOtp->otp)) {
+            return response()->json([
+                'message' => 'The verification code is invalid or has expired. Please try again.',
+                'success' => false,
+            ], 422);
+        }
+
+        $emailOtp->forceFill([
+            'verified_at' => now(),
+        ])->save();
+
+        return response()->json([
+            'message' => 'Email verified successfully.',
+            'success' => true,
+        ]);
+    }
+
+    private function ensureEmailOtpVerified(string $email): void
+    {
+        $verifiedOtp = EmailOtp::where('email', strtolower(trim($email)))
+            ->whereNotNull('verified_at')
+            ->where('expires_at', '>', now())
+            ->latest('verified_at')
+            ->first();
+
+        if (!$verifiedOtp) {
+            throw ValidationException::withMessages([
+                'email' => 'Please verify your email address with the OTP before creating your account.',
+            ]);
+        }
+    }
+
     public function register(Request $request)
     {
 
@@ -85,6 +208,7 @@ class Auth extends Controller
 
         try {
             $validatedData = $this->validate_fields($request);
+            $this->ensureEmailOtpVerified($validatedData['email']);
             $role_id = Role::findByName($validatedData['user_type']);
             if (!$role_id) {
                 throw ValidationException::withMessages(['user_type' => 'Invalid user type']);
@@ -109,6 +233,7 @@ class Auth extends Controller
                 ARRAY_FILTER_USE_KEY
             );
             $user->preferences()->create($preferencesData);
+            EmailOtp::where('email', strtolower(trim($validatedData['email'])))->delete();
 
             DB::commit();
 
@@ -126,6 +251,13 @@ class Auth extends Controller
                 'success' => true
             ])->header('Access-Control-Allow-Credentials', 'true')
                 ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
+        } catch (ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Registration failed',
+                'errors' => $e->errors(),
+                'error' => collect($e->errors())->flatten()->first(),
+            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([

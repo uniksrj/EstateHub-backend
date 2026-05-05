@@ -24,8 +24,7 @@ class Property_controller extends Controller
         PropertyAnalyticsService $propertyService,
         UserMetricsService $userActivityService,
         CloudinaryService $cloudinaryService
-    )
-    {
+    ) {
         $this->propertyService = $propertyService;
         $this->userActivityService = $userActivityService;
         $this->cloudinaryService = $cloudinaryService;
@@ -70,7 +69,7 @@ class Property_controller extends Controller
                 $validatedData['features'] = json_encode($this->convert_features_to_json($validatedData['features']) ?? []);
             }
 
-            if(empty($validatedData['garage'])){
+            if (empty($validatedData['garage'])) {
                 $validatedData['garage'] = 0;
             }
 
@@ -511,6 +510,7 @@ class Property_controller extends Controller
 
     public function get_property_by_type(Request $request)
     {
+        
         $user = auth()->user();
         $type = $request->type;
 
@@ -596,7 +596,7 @@ class Property_controller extends Controller
         ]);
 
         return response()->json([
-            'message' => 'Property boost activated successfully.',
+            'message' => 'Your property boost is now active.',
             'property' => $property->fresh(['images', 'agent']),
         ]);
     }
@@ -608,22 +608,25 @@ class Property_controller extends Controller
                 'type' => 'basic',
                 'name' => 'Basic',
                 'duration_days' => 3,
-                'price' => 19,
-                'description' => 'Priority placement in listing results for 3 days.',
+                'price' => 199,
+                'currency' => 'INR',
+                'description' => 'Get better placement on listing pages for 3 days.',
             ],
             [
                 'type' => 'premium',
                 'name' => 'Premium',
                 'duration_days' => 7,
-                'price' => 39,
-                'description' => 'Stronger listing priority for 7 days.',
+                'price' => 399,
+                'currency' => 'INR',
+                'description' => 'Stay ahead of standard listings for 7 days and attract more buyer enquiries.',
             ],
             [
                 'type' => 'homepage',
-                'name' => 'Homepage',
+                'name' => 'Homepage Featured',
                 'duration_days' => 7,
-                'price' => 59,
-                'description' => 'Top listing priority plus homepage highlight for 7 days.',
+                'price' => 699,
+                'currency' => 'INR',
+                'description' => 'Get top priority and a homepage featured spot for 7 days.',
             ],
         ];
     }

@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Password;
 /** Authentication Routes */
 Route::post('/auth/register', [Auth::class, 'register']);
 Route::post('/auth/login', [Auth::class, 'login']);
+Route::post('/send-email-otp', [Auth::class, 'send_email_otp']);
+Route::post('/verify-email-otp', [Auth::class, 'verify_email_otp']);
 Route::post('/beta-feedback', [BetaFeedbackController::class, 'store']);
 /** Authentication Routes */
 
