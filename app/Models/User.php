@@ -27,6 +27,8 @@ class User extends Authenticatable
         'avatar',
         'role_id',
         'bio',
+        'email_verified_at',
+        'terms_accepted_at',
         'is_active',
         'is_active',
         'is_verified',
@@ -53,6 +55,7 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'terms_accepted_at' => 'datetime',
         'is_verified' => 'boolean',
         'settings' => 'array',
         'last_login_at' => 'datetime',

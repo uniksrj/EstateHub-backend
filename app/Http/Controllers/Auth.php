@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth as FacadesAuth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Validation\Rules;
@@ -134,7 +135,21 @@ class Auth extends Controller
             'attempts' => 0,
         ]);
 
-        Mail::to($normalizedEmail)->send(new SendEmailOtp($plainOtp, $normalizedEmail));
+        try {
+            Mail::to($normalizedEmail)->send(new SendEmailOtp($plainOtp, $normalizedEmail));
+        } catch (\Throwable $e) {
+            EmailOtp::where('email', $normalizedEmail)->delete();
+
+            Log::error('Failed to send email OTP.', [
+                'email' => $normalizedEmail,
+                'exception' => $e,
+            ]);
+
+            return response()->json([
+                'message' => 'Unable to send verification code right now. Please try again later.',
+                'success' => false,
+            ], 503);
+        }
 
         return response()->json([
             'message' => 'If this email can be used for registration, a verification code has been sent.',
@@ -221,6 +236,8 @@ class Auth extends Controller
                 'password' => Hash::make($validatedData['password']),
                 'phone' => $validatedData['phone'],
                 'role_id' => $role_id,
+                'email_verified_at' => now(),
+                'terms_accepted_at' => now(),
                 'is_active' => true,
                 'last_login_at' => now(),
             ]);
