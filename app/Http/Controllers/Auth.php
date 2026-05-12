@@ -259,15 +259,13 @@ class Auth extends Controller
                 ['*'],
                 now()->addWeek()
             )->plainTextToken;
-            auth()->login($user, $request->remember ?? false);
-            // FacadesAuth::login();
-            $request->session()->regenerate();
+
             return response()->json([
                 'user' => $user->load('preferences'),
                 'message' => 'Login successful',
-                'success' => true
-            ])->header('Access-Control-Allow-Credentials', 'true')
-                ->header('Access-Control-Allow-Origin', 'http://localhost:5173');
+                'success' => true,
+                'chatToken' => $token,
+            ]);
         } catch (ValidationException $e) {
             DB::rollBack();
             return response()->json([
@@ -308,37 +306,20 @@ class Auth extends Controller
 
         // Sanctum v4 token creation
         $token = $user->createToken('auth-token', ['*'])->plainTextToken;
-        auth()->login($user, $request->remember ?? false);
-        $request->session()->regenerate();
         User::where('id', $user->id)->update(['last_login_at' => now()]);
-        $cookie = cookie(
-            'auth_token',
-            $token,
-            60 * 24 * 1,
-            '/',
-            null,
-            true,
-            true,
-            false,
-            'Strict'
-        );
+
         return response()->json([
             'user' => $user->load('preferences'),
             'message' => 'Login successful',
             'success' => true,
             'chatToken' => $token
-        ])->header('Access-Control-Allow-Credentials', 'true')
-            ->header('Access-Control-Allow-Origin', 'http://localhost:5173')->cookie($cookie);
+        ]);
     }
 
     public function logout(Request $request)
     {
-        // Sanctum v4: Revoke the current token based 
-        // $request->user()->currentAccessToken()->delete();
-        // Revoke all FacadesAuth::logout(); sessions for the user
-        auth()->guard('web')->logout();
-        $request->session()->invalidate();
-        $request->session()->regenerateToken();
+        $request->user()?->currentAccessToken()?->delete();
+
         return response()->json([
             'message' => 'Successfully logged out',
             'success' => true
