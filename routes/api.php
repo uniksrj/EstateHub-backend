@@ -89,7 +89,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 /**  Admin Routes */
 
 /* Forget Password Routes */
-Route::post('/forgot-password', function (Request $request) {
+$sendPasswordResetLink = function (Request $request) {
     $request->validate(['email' => 'required|email']);
 
     $status = Password::sendResetLink(
@@ -97,9 +97,12 @@ Route::post('/forgot-password', function (Request $request) {
     );
 
     return $status === Password::RESET_LINK_SENT
-        ? response()->json(['message' => __($status)], 200)
-        : response()->json(['message' => __($status)], 400);
-});
+        ? response()->json(['message' => 'If an account exists for this email, a password reset link has been sent.'], 200)
+        : response()->json(['message' => 'Unable to send password reset link right now. Please try again later.'], 400);
+};
+
+Route::post('/forgot-password', $sendPasswordResetLink);
+Route::post('/auth/forgot-password', $sendPasswordResetLink);
 /* Forget Password Routes */
 
 /* Reset Password Routes */
