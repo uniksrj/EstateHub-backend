@@ -13,10 +13,10 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 
 /** Authentication Routes */
-Route::post('/auth/register', [Auth::class, 'register']);
-Route::post('/auth/login', [Auth::class, 'login']);
-Route::post('/send-email-otp', [Auth::class, 'send_email_otp']);
-Route::post('/verify-email-otp', [Auth::class, 'verify_email_otp']);
+Route::post('/auth/register', [Auth::class, 'register'])->middleware('throttle:auth.register');
+Route::post('/auth/login', [Auth::class, 'login'])->middleware('throttle:auth.login');
+Route::post('/send-email-otp', [Auth::class, 'send_email_otp'])->middleware('throttle:auth.otp');
+Route::post('/verify-email-otp', [Auth::class, 'verify_email_otp'])->middleware('throttle:auth.otp');
 Route::post('/beta-feedback', [BetaFeedbackController::class, 'store']);
 /** Authentication Routes */
 
@@ -101,8 +101,8 @@ $sendPasswordResetLink = function (Request $request) {
         : response()->json(['message' => 'Unable to send password reset link right now. Please try again later.'], 400);
 };
 
-Route::post('/forgot-password', $sendPasswordResetLink);
-Route::post('/auth/forgot-password', $sendPasswordResetLink);
+Route::post('/forgot-password', $sendPasswordResetLink)->middleware('throttle:auth.password-reset');
+Route::post('/auth/forgot-password', $sendPasswordResetLink)->middleware('throttle:auth.password-reset');
 /* Forget Password Routes */
 
 /* Reset Password Routes */
@@ -125,7 +125,7 @@ Route::post('/reset-password', function (Request $request) {
     return $status === Password::PASSWORD_RESET
         ? response()->json(['message' => 'Password reset successfully'], 200)
         : response()->json(['message' => __($status)], 400);
-})->name('password.update');
+})->middleware('throttle:auth.password-reset')->name('password.update');
 /* Reset Password Routes */
 
 /* General Property details api routes */
