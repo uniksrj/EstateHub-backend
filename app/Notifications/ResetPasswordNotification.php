@@ -26,13 +26,13 @@ class ResetPasswordNotification extends Notification
             . '&email=' . urlencode($notifiable->getEmailForPasswordReset());
 
         return (new MailMessage)
-            ->subject('Reset your EstateHub password')
+            ->subject('Reset your EstateHub India password')
             ->greeting('Hello ' . ($notifiable->name ?? 'there') . ',')
-            ->line('We received a request to reset the password for your EstateHub account.')
+            ->line('We received a request to reset the password for your EstateHub India account.')
             ->line('Use the button below to choose a new password and regain access to your account.')
             ->action('Reset password', $resetUrl)
             ->line('This secure link will expire in 60 minutes.')
             ->line('If you did not request a password reset, you can safely ignore this email. Your account remains protected.')
-            ->salutation('EstateHub Support');
+            ->salutation('EstateHub India Support');
     }
 }

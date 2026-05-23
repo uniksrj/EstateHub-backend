@@ -12,7 +12,7 @@ View Matching Properties
 
 @foreach($properties->take(5) as $property)
 ### {{ $property->title }}
-- **Price:** ${{ number_format($property->price) }}
+- **Price:** ₹{{ number_format($property->price, 0, '.', ',') }}
 - **Bedrooms:** {{ $property->bedrooms }}
 - **Bathrooms:** {{ $property->bathrooms }}
 - **Type:** {{ $property->property_type }}

@@ -27,7 +27,7 @@ return new class extends Migration
             $table->string('city', 100);
             $table->string('state', 100);
             $table->string('zip_code', 20);
-            $table->string('country', 100)->default('USA');
+            $table->string('country', 100)->default('India');
             $table->decimal('latitude', 10, 8)->nullable();
             $table->decimal('longitude', 11, 8)->nullable();
 

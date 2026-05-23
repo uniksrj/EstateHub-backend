@@ -114,7 +114,7 @@ class ActivityService
             $deal,
             'payment_received',
             'received',
-            "{$paymentType} - $" . number_format($amount),
+            "{$paymentType} - ₹" . number_format($amount),
             $deal->current_step,
             'completed',
             $user,

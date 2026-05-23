@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('deals', function (Blueprint $table) {
-            $table->string('earnest_currency', 3)->default('USD')->after('earnest_money_deposit');
+            $table->string('earnest_currency', 3)->default('INR')->after('earnest_money_deposit');
 
             // Payment Details
             $table->enum('earnest_payment_method', ['wire', 'check', 'cash', 'other'])->nullable();

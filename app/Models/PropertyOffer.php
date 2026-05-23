@@ -158,7 +158,7 @@ class PropertyOffer extends Model
      */
     public function getFormattedOfferAmountAttribute(): string
     {
-        return '$' . number_format($this->offer_amount, 2);
+        return '₹' . number_format($this->offer_amount, 2);
     }
 
     /**
@@ -166,7 +166,7 @@ class PropertyOffer extends Model
      */
     public function getFormattedCounterOfferAmountAttribute(): ?string
     {
-        return $this->counter_offer_amount ? '$' . number_format($this->counter_offer_amount, 2) : null;
+        return $this->counter_offer_amount ? '₹' . number_format($this->counter_offer_amount, 2) : null;
     }
 
     /**

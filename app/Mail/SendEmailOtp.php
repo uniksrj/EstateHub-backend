@@ -21,7 +21,7 @@ class SendEmailOtp extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Your Estate Hub verification code',
+            subject: 'Your EstateHub India verification code',
         );
     }
 
