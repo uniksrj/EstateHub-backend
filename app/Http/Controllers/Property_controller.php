@@ -371,30 +371,30 @@ class Property_controller extends Controller
 
     public function get_property_list_by_userID(Request $request)
     {
-        if (!in_array($request->user()->role_id, [1, 2, 3, 6])) {
+        $user = $request->user();
+
+        if (!in_array($user->role_id, [1, 2, 3, 6])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
         }
 
         // Get properties with all related data and analytics
         $propertyList = Property::with([
             'property_views',
-            'images',
+            // 'images',
             'inquiries',
             'offers'
         ])
-            ->where('agent_id', auth()->id())
+            ->where('agent_id', $user->id)
             ->boostedFirst()
             ->orderByDesc('created_at')
             ->paginate(10);
 
-        // Enhance each property with calculated analytics
-        $enhancedProperties = $propertyList->getCollection()->map(function ($property) {
-            return $this->propertyService->enhancePropertyWithAnalytics($property);
-        });
+        // Enhance the current page with batched analytics queries.
+        $enhancedProperties = $this->propertyService->enhancePropertiesWithAnalytics($propertyList->getCollection());
 
         $agentClientStats = [];
-        if (in_array($request->user()->role_id, [3])) {
-            $agentClientStats = $this->propertyService->getAgentClientsStats(auth()->id());
+        if (in_array($user->role_id, [3])) {
+            $agentClientStats = $this->propertyService->getAgentClientsStats($user->id);
         }
 
         $propertyList->setCollection($enhancedProperties);
@@ -443,35 +443,51 @@ class Property_controller extends Controller
     {
         $sellerId = auth()->id();
 
-        // Get seller's properties with counts
-        $properties = Property::where('agent_id', $sellerId)
-            ->withCount(['property_views', 'inquiries', 'offers'])
-            ->get();
+        $overview = Property::where('agent_id', $sellerId)
+            ->selectRaw('
+                COUNT(*) as total_listings,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as active_listings,
+                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as sold_properties
+            ', ['for_sale', 'sold'])
+            ->first();
 
-        // Calculate overview metrics
-        $totalListings = $properties->count();
-        $activeListings = $properties->where('status', 'for_sale')->count();
-        $totalViews = $properties->sum('property_views_count');
+        $totalViews = PropertyView::join('properties', 'properties.id', '=', 'property_views.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->count();
 
-        $pendingOffers = PropertyOffer::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })->where('status', 'pending')->count();
+        $totalInquiries = DB::table('inquiries')
+            ->join('properties', 'properties.id', '=', 'inquiries.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->count();
+
+        $pendingOffers = PropertyOffer::join('properties', 'properties.id', '=', 'property_offers.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->whereNull('property_offers.deleted_at')
+            ->where('property_offers.status', 'pending')
+            ->count();
 
         // Recent activity (last 7 days views)
-        $recentActivity = PropertyView::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })
-            ->with('property')
-            ->select('property_id', DB::raw('COUNT(*) as view_count'), DB::raw('MAX(viewed_at) as last_viewed'))
-            ->where('viewed_at', '>=', now()->subDays(7))
-            ->groupBy('property_id')
-            ->orderBy('last_viewed', 'desc')
+        $recentActivity = PropertyView::join('properties', 'properties.id', '=', 'property_views.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->where('property_views.viewed_at', '>=', now()->subDays(7))
+            ->selectRaw('
+                property_views.property_id,
+                properties.title as property_title,
+                COUNT(*) as view_count,
+                MAX(property_views.viewed_at) as last_viewed
+            ')
+            ->groupBy('property_views.property_id', 'properties.title')
+            ->orderByDesc('last_viewed')
             ->limit(5)
             ->get()
             ->map(function ($view) {
-                $carbon = new \Carbon\Carbon($view->last_viewed);
+                $carbon = new Carbon($view->last_viewed);
                 return [
-                    'property_title' => $view->property->title,
+                    'property_title' => $view->property_title,
                     'view_count' => $view->view_count,
                     'last_viewed' => $carbon->diffForHumans(),
                 ];
@@ -482,13 +498,13 @@ class Property_controller extends Controller
 
         return response()->json([
             'overview' => [
-                'totalListings' => $totalListings,
-                'activeListings' => $activeListings,
+                'totalListings' => (int) $overview->total_listings,
+                'activeListings' => (int) $overview->active_listings,
                 'totalViews' => $totalViews,
                 'pendingOffers' => $pendingOffers,
                 'unreadMessages' => 0,
-                'totalInquiries' => $properties->sum('inquiries_count'),
-                'soldProperties' => $properties->where('status', 'sold')->count(),
+                'totalInquiries' => $totalInquiries,
+                'soldProperties' => (int) $overview->sold_properties,
             ],
             'recentActivity' => $recentActivity,
             'performance' => $performanceData,

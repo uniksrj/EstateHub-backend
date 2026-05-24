@@ -192,8 +192,143 @@ class PropertyAnalyticsService
      */
     public function enhancePropertiesWithAnalytics($properties)
     {
-        return $properties->map(function ($property) {
-            return $this->enhancePropertyWithAnalytics($property);
+        $propertyIds = $properties->pluck('id');
+
+        if ($propertyIds->isEmpty()) {
+            return $properties;
+        }
+
+        $now = now();
+        $viewStats = PropertyView::whereIn('property_id', $propertyIds)
+            ->selectRaw('
+                property_id,
+                COUNT(*) as total_views,
+                COUNT(DISTINCT ip_address) as unique_viewers,
+                SUM(CASE WHEN DATE(viewed_at) = ? THEN 1 ELSE 0 END) as views_today,
+                SUM(CASE WHEN viewed_at >= ? THEN 1 ELSE 0 END) as views_this_week,
+                SUM(CASE WHEN viewed_at >= ? THEN 1 ELSE 0 END) as views_this_month
+            ', [
+                $now->toDateString(),
+                $now->copy()->subWeek(),
+                $now->copy()->subMonth(),
+            ])
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        $dailyViews = PropertyView::whereIn('property_id', $propertyIds)
+            ->where('viewed_at', '>=', $now->copy()->subDays(30))
+            ->selectRaw('property_id, DATE(viewed_at) as date, COUNT(*) as count')
+            ->groupBy('property_id', 'date')
+            ->orderBy('date', 'desc')
+            ->get()
+            ->groupBy('property_id');
+
+        $inquiryStats = Inquiry::whereIn('property_id', $propertyIds)
+            ->selectRaw('
+                property_id,
+                COUNT(*) as total_inquiries,
+                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending_inquiries,
+                SUM(CASE WHEN status = "responded" THEN 1 ELSE 0 END) as responded_inquiries,
+                SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as recent_inquiries
+            ', [$now->copy()->subWeek()])
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        $inquirySources = Inquiry::whereIn('property_id', $propertyIds)
+            ->selectRaw('property_id, source, COUNT(*) as count')
+            ->groupBy('property_id', 'source')
+            ->get()
+            ->groupBy('property_id');
+
+        $offerStats = PropertyOffer::whereIn('property_id', $propertyIds)
+            ->selectRaw('
+                property_id,
+                COUNT(*) as total_offers,
+                SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending_offers,
+                SUM(CASE WHEN status = "accepted" THEN 1 ELSE 0 END) as accepted_offers,
+                SUM(CASE WHEN status = "rejected" THEN 1 ELSE 0 END) as rejected_offers,
+                AVG(CASE WHEN status != "rejected" THEN offer_amount ELSE NULL END) as average_offer_amount,
+                MAX(offer_amount) as highest_offer
+            ')
+            ->groupBy('property_id')
+            ->get()
+            ->keyBy('property_id');
+
+        return $properties->map(function ($property) use ($viewStats, $dailyViews, $inquiryStats, $inquirySources, $offerStats) {
+            $views = $viewStats->get($property->id);
+            $inquiries = $inquiryStats->get($property->id);
+            $offers = $offerStats->get($property->id);
+
+            $totalViews = (int) ($views->total_views ?? 0);
+            $totalInquiries = (int) ($inquiries->total_inquiries ?? 0);
+            $totalOffers = (int) ($offers->total_offers ?? 0);
+
+            $viewsThisWeek = (int) ($views->views_this_week ?? 0);
+            $inquiriesThisWeek = (int) ($inquiries->recent_inquiries ?? 0);
+            $marketHealthScore = min($viewsThisWeek * 2, 40)
+                + min($inquiriesThisWeek * 10, 30)
+                + min($totalOffers * 15, 30);
+
+            $viewToInquiryRate = $this->getConversionRate($totalInquiries, $totalViews);
+            $inquiryToOfferRate = $this->getConversionRate($totalOffers, $totalInquiries);
+
+            return array_merge($property->toArray(), [
+                'analytics' => [
+                    'views' => [
+                        'total_views' => $totalViews,
+                        'unique_viewers' => (int) ($views->unique_viewers ?? 0),
+                        'views_today' => (int) ($views->views_today ?? 0),
+                        'views_this_week' => $viewsThisWeek,
+                        'views_this_month' => (int) ($views->views_this_month ?? 0),
+                        'daily_views' => $dailyViews->get($property->id, collect())->map(function ($item) {
+                            return [
+                                'date' => $item->date,
+                                'count' => (int) $item->count,
+                            ];
+                        })->values(),
+                    ],
+                    'inquiries' => [
+                        'total_inquiries' => $totalInquiries,
+                        'pending_inquiries' => (int) ($inquiries->pending_inquiries ?? 0),
+                        'responded_inquiries' => (int) ($inquiries->responded_inquiries ?? 0),
+                        'recent_inquiries' => $inquiriesThisWeek,
+                        'inquiry_sources' => $inquirySources->get($property->id, collect())->map(function ($item) {
+                            return [
+                                'source' => $item->source,
+                                'count' => (int) $item->count,
+                            ];
+                        })->values(),
+                    ],
+                    'offers' => [
+                        'total_offers' => $totalOffers,
+                        'pending_offers' => (int) ($offers->pending_offers ?? 0),
+                        'accepted_offers' => (int) ($offers->accepted_offers ?? 0),
+                        'rejected_offers' => (int) ($offers->rejected_offers ?? 0),
+                        'average_offer_amount' => $offers->average_offer_amount ?? null,
+                        'highest_offer' => $offers->highest_offer ?? null,
+                    ],
+                    'performance' => [
+                        'days_on_market' => $this->getDaysOnMarket($property),
+                        'view_to_inquiry_rate' => $viewToInquiryRate,
+                        'inquiry_to_offer_rate' => $inquiryToOfferRate,
+                        'overall_conversion_rate' => $viewToInquiryRate * $inquiryToOfferRate / 100,
+                        'price_per_sq_ft' => $property->sq_ft > 0 ? $property->price / $property->sq_ft : 0,
+                        'market_health' => [
+                            'score' => $marketHealthScore,
+                            'rating' => $this->getHealthRating($marketHealthScore),
+                        ],
+                    ],
+                ],
+                'quick_stats' => [
+                    'total_views' => $totalViews,
+                    'total_inquiries' => $totalInquiries,
+                    'total_offers' => $totalOffers,
+                    'days_on_market' => $this->getDaysOnMarket($property),
+                    'view_to_inquiry_rate' => $viewToInquiryRate,
+                ],
+            ]);
         });
     }
 
@@ -228,23 +363,23 @@ class PropertyAnalyticsService
     public function getPerformanceData($sellerId)
     {
         // Last 7 days views data
-        $viewsData = PropertyView::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })
-            ->where('viewed_at', '>=', now()->subDays(7))
-            ->selectRaw('DAYNAME(viewed_at) as day, COUNT(*) as views')
-            ->groupBy('day')
-            ->orderBy(DB::raw('MIN(viewed_at)'))
+        $viewsData = PropertyView::join('properties', 'properties.id', '=', 'property_views.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->where('property_views.viewed_at', '>=', now()->subDays(7))
+            ->selectRaw('DAYNAME(property_views.viewed_at) as day, COUNT(*) as views')
+            ->groupByRaw('DAYNAME(property_views.viewed_at)')
+            ->orderByRaw('MIN(property_views.viewed_at)')
             ->get();
 
         // Monthly performance
-        $monthlyData = PropertyView::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })
-            ->where('viewed_at', '>=', now()->subMonths(6))
-            ->selectRaw('DATE_FORMAT(viewed_at, "%b %Y") as month, COUNT(*) as views')
-            ->groupBy('month')
-            ->orderBy('month')
+        $monthlyData = PropertyView::join('properties', 'properties.id', '=', 'property_views.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->where('property_views.viewed_at', '>=', now()->subMonths(6))
+            ->selectRaw('DATE_FORMAT(property_views.viewed_at, "%b %Y") as month, COUNT(*) as views')
+            ->groupByRaw('YEAR(property_views.viewed_at), MONTH(property_views.viewed_at), DATE_FORMAT(property_views.viewed_at, "%b %Y")')
+            ->orderByRaw('MIN(property_views.viewed_at)')
             ->get();
 
         return [
@@ -257,6 +392,7 @@ class PropertyAnalyticsService
     public function getTopPerformingProperties($sellerId)
     {
         return Property::where('agent_id', $sellerId)
+            ->select(['id', 'title', 'status'])
             ->withCount(['property_views', 'inquiries'])
             ->orderBy('property_views_count', 'desc')
             ->limit(5)
@@ -278,18 +414,27 @@ class PropertyAnalyticsService
     public function getRecentInquiries($sellerId)
     {
 
-        return Inquiry::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })
-            ->with(['property', 'user'])
-            ->orderBy('created_at', 'desc')
+        return Inquiry::join('properties', 'properties.id', '=', 'inquiries.property_id')
+            ->leftJoin('users', 'users.id', '=', 'inquiries.user_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->select([
+                'inquiries.id',
+                'inquiries.name',
+                'inquiries.message',
+                'inquiries.status',
+                'inquiries.created_at',
+                'properties.title as property_title',
+                'users.name as user_name',
+            ])
+            ->orderByDesc('inquiries.created_at')
             ->limit(5)
             ->get()
             ->map(function ($inquiry) {
                 return [
                     'id' => $inquiry->id,
-                    'property_title' =>  optional($inquiry->property)->title,
-                    'user_name' => $inquiry->user?->name ??  $inquiry->name,
+                    'property_title' => $inquiry->property_title,
+                    'user_name' => $inquiry->user_name ??  $inquiry->name,
                     'message' => Str::limit($inquiry->message, 50),
                     'status' => $inquiry->status,
                     'created_at' => $inquiry->created_at->diffForHumans()
@@ -299,13 +444,15 @@ class PropertyAnalyticsService
 
     public function calculateConversionRate($sellerId)
     {
-        $totalViews = PropertyView::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })->count();
+        $totalViews = PropertyView::join('properties', 'properties.id', '=', 'property_views.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->count();
 
-        $totalInquiries = Inquiry::whereHas('property', function ($query) use ($sellerId) {
-            $query->where('agent_id', $sellerId);
-        })->count();
+        $totalInquiries = Inquiry::join('properties', 'properties.id', '=', 'inquiries.property_id')
+            ->where('properties.agent_id', $sellerId)
+            ->whereNull('properties.deleted_at')
+            ->count();
 
         return $totalViews > 0 ? round(($totalInquiries / $totalViews) * 100, 2) : 0;
     }
@@ -508,7 +655,7 @@ class PropertyAnalyticsService
                 'metric' => 'Sale-to-List Ratio',
                 'current' => $saleToListRatio,
                 'previous' => 96.8,
-                'change' => round($this->calculateGrowth($saleToListRatio, 96.8), 1)
+                'change' => round((float) $this->calculateGrowth($saleToListRatio, 96.8), 1)
             ],
             [
                 'metric' => 'Inventory Turnover',
@@ -650,22 +797,20 @@ class PropertyAnalyticsService
     {
         $agent = $agent_id ? $agent_id : auth()->user()->id;
 
-        $activeClients = User::where('role_id', 5)
-            ->whereHas('inquiries.property', function ($q) use ($agent) {
-                $q->where('agent_id', $agent);
-            })
-            ->count();
-
-        $newClientsThisWeek = User::where('role_id', 5)
-            ->whereHas('inquiries.property', function ($q) use ($agent) {
-                $q->where('agent_id', $agent);
-            })
-            ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
-            ->count();
+        $stats = User::join('inquiries', 'inquiries.user_id', '=', 'users.id')
+            ->join('properties', 'properties.id', '=', 'inquiries.property_id')
+            ->where('users.role_id', 5)
+            ->where('properties.agent_id', $agent)
+            ->whereNull('properties.deleted_at')
+            ->selectRaw('
+                COUNT(DISTINCT users.id) as active_clients,
+                COUNT(DISTINCT CASE WHEN users.created_at BETWEEN ? AND ? THEN users.id END) as new_this_week
+            ', [now()->startOfWeek(), now()->endOfWeek()])
+            ->first();
 
         return [
-            'active_clients' => $activeClients,
-            'new_this_week' => $newClientsThisWeek,
+            'active_clients' => (int) ($stats->active_clients ?? 0),
+            'new_this_week' => (int) ($stats->new_this_week ?? 0),
         ];
     }
 
