@@ -201,8 +201,8 @@ class User_controller extends Controller
         if ($user->role_id == 5) {
             // Buyer
             $query->where('buyer_id', $user->id);
-        } elseif ($user->role_id == 3) {
-            // Agent
+        } elseif (in_array($user->role_id, [3,6])) {
+            // Agent Seller
             $query->where('agent_id', $user->id);
         } elseif ($user->role_id == 1 || $user->role_id == 2) {
             // Admin: no filter (see all)

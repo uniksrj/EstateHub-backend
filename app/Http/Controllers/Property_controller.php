@@ -379,9 +379,9 @@ class Property_controller extends Controller
 
         // Get properties with all related data and analytics
         $propertyList = Property::with([
-            'property_views',
+            // 'property_views',
             // 'images',
-            'inquiries',
+            // 'inquiries',
             'offers'
         ])
             ->where('agent_id', $user->id)
