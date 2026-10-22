@@ -92,13 +92,24 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 $sendPasswordResetLink = function (Request $request) {
     $request->validate(['email' => 'required|email']);
 
-    $status = Password::sendResetLink(
-        $request->only('email')
-    );
+    try {
+        $status = Password::sendResetLink(
+            $request->only('email')
+        );
 
-    return $status === Password::RESET_LINK_SENT
-        ? response()->json(['message' => 'If an account exists for this email, a password reset link has been sent.'], 200)
-        : response()->json(['message' => 'Unable to send password reset link right now. Please try again later.'], 400);
+        return $status === Password::RESET_LINK_SENT
+            ? response()->json(['message' => 'If an account exists for this email, a password reset link has been sent.'], 200)
+            : response()->json(['message' => 'Unable to send password reset link right now. Please try again later.'], 400);
+    } catch (\Throwable $e) {
+        \Illuminate\Support\Facades\Log::error('Password reset email error: ' . $e->getMessage(), [
+            'email' => $request->email,
+            'exception' => $e,
+        ]);
+
+        return response()->json([
+            'message' => 'Failed to send password reset email. Please check your mail service configuration or try again later.'
+        ], 500);
+    }
 };
 
 Route::post('/forgot-password', $sendPasswordResetLink)->middleware('throttle:auth.password-reset');
