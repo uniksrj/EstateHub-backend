@@ -77,7 +77,7 @@ return new class extends Migration
                 'wire_confirmation'
             ]);
 
-            $table->json('shared_with')->default('[]');
+            $table->json('shared_with')->nullable();
             $table->text('description')->nullable();
             $table->boolean('requires_signature')->default(false);
             $table->timestamp('signed_at')->nullable();

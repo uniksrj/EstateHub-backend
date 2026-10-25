@@ -27,6 +27,10 @@ class DealDocument extends Model
         'notes'
     ];
 
+    protected $attributes = [
+        'shared_with' => '[]',
+    ];
+
     protected $casts = [
         'shared_with' => 'array',
         'requires_signature' => 'boolean',

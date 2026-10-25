@@ -16,12 +16,64 @@ class DealController extends Controller
 {
     public function __construct(private DealProgressService $progressService, protected ESignatureService $eSignatureService, protected ActivityService $activity_service) {}
 
-    public function getAgentDeals()
+    /**
+     * Retrieve a deal ensuring the authenticated user is authorized to access it.
+     *
+     * @param int|string $dealId
+     * @param \App\Models\User|null $user
+     * @param bool $agentOnly Whether access is strictly restricted to the assigned agent (and admins)
+     * @return Deal|null
+     */
+    protected function getAuthorizedDeal($dealId, $user = null, bool $agentOnly = false): ?Deal
     {
-        $deals = Deal::with(['property', 'buyer', 'seller'])
-            ->where('agent_id', auth()->id())
-            ->whereIn('status', ['under_contract', 'pending_sale', 'closing'])
-            ->get()
+        $user = $user ?: (request()->user() ?: auth()->user());
+        if (!$user) {
+            return null;
+        }
+
+        $query = Deal::where('id', $dealId);
+
+        // Superadmin (1) and Admin (2) have global platform access
+        if (in_array($user->role_id, [1, 2])) {
+            return $query->first();
+        }
+
+        if ($agentOnly) {
+            // Only the assigned agent can perform management actions
+            if ($user->role_id != 3) {
+                return null;
+            }
+            $query->where('agent_id', $user->id);
+        } else {
+            // Document storage / retrieval: participant authorization (agent_id, buyer_id, or seller_id)
+            if (!in_array($user->role_id, [3, 5, 6])) {
+                return null;
+            }
+            $query->where(function ($q) use ($user) {
+                $q->where('agent_id', $user->id)
+                  ->orWhere('buyer_id', $user->id)
+                  ->orWhere('seller_id', $user->id);
+            });
+        }
+
+        return $query->first();
+    }
+
+    public function getAgentDeals(Request $request)
+    {
+        $user = $request->user() ?: auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        $query = Deal::with(['property', 'buyer', 'seller'])
+            ->whereIn('status', ['under_contract', 'pending_sale', 'closing']);
+
+        if (!in_array($user->role_id, [1, 2])) {
+            $query->where('agent_id', $user->id);
+        }
+
+        $deals = $query->get()
             ->map(function ($deal) {
                 return [
                     'id' => $deal->id,
@@ -47,8 +99,12 @@ class DealController extends Controller
         return response()->json($deals);
     }
 
-    public function store_document(Request $request,)
+    public function store_document(Request $request)
     {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3, 5, 6])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
 
         $request->validate([
             'file' => 'required|file|mimes:pdf,doc,docx,jpg,jpeg,png|max:10240',
@@ -58,7 +114,12 @@ class DealController extends Controller
             'requires_signature' => 'required|in:true,false,1,0,true,false',
             'deal_id' => 'required|exists:deals,id'
         ]);
-        $deal_data = Deal::findOrFail($request->deal_id);
+
+        $deal_data = $this->getAuthorizedDeal($request->deal_id, $user, false);
+        if (!$deal_data) {
+            return response()->json(['message' => 'Unauthorized: You are not authorized for this deal'], 403);
+        }
+
         // Map document_type to category
         $category = $this->progressService->getCategoryFromDocumentType($request->document_type);
 
@@ -72,12 +133,6 @@ class DealController extends Controller
             $file->getClientOriginalExtension()
         );
 
-        // Upload file
-        // $fileUrl = Storage::disk('s3')->putFileAs(
-        //     "deals/{$deal->id}",
-        //     $file,
-        //     $conventionName
-        // );
         $path = Storage::disk('public')->putFileAs(
             "deals/{$deal_data->id}",
             $file,
@@ -87,7 +142,7 @@ class DealController extends Controller
         $document = DealDocument::create([
             'deal_id' => $deal_data->id,
             'property_offer_id' => $deal_data->offer_id,
-            'uploaded_by' => auth()->id(),
+            'uploaded_by' => $user->id,
             'document_name' => $conventionName,
             'original_name' => $file->getClientOriginalName(),
             'file_url' => asset(Storage::url($path)),
@@ -101,7 +156,7 @@ class DealController extends Controller
             'signed_at' => null,
         ]);
 
-        ActivityService::logDocumentUpload($deal_data, $document, auth()->user());
+        ActivityService::logDocumentUpload($deal_data, $document, $user);
 
         return response()->json([
             'message' => 'Document uploaded successfully',
@@ -111,21 +166,38 @@ class DealController extends Controller
 
     public function get_document_details(Request $request, $deal_id)
     {
-        if (!in_array($request->user()->role_id, [3])) {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3, 5, 6])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
         }
-        $documents = DealDocument::where('deal_id', $deal_id)->get();
+
+        $deal = $this->getAuthorizedDeal($deal_id, $user, false);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
+        }
+
+        $documents = DealDocument::where('deal_id', $deal->id)->get();
         return response()->json([
-            'message' => 'Document uploaded successfully',
+            'message' => 'Document retrieved successfully',
             'document' => $documents
-        ], 201);
+        ], 200);
     }
 
-    public function checkAndUpdateStepProgress($deal_id, $stepKey)
+    public function checkAndUpdateStepProgress(Request $request, $deal_id, $stepKey)
     {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $deal = $this->getAuthorizedDeal($deal_id, $user, true);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
+        }
+
         $requiredDocs = $this->progressService->getRequiredDocumentsForStep($stepKey);
 
-        $uploadedDocs = DealDocument::where('deal_id', $deal_id)
+        $uploadedDocs = DealDocument::where('deal_id', $deal->id)
             ->whereIn('document_type', $requiredDocs)
             ->get();
 
@@ -134,13 +206,21 @@ class DealController extends Controller
         });
 
         if ($allUploaded) {
-            return $this->markStepComplete($deal_id, $stepKey);
+            return $this->markStepComplete($deal->id, $stepKey, $user);
         }
+
+        return response()->json([
+            'message' => 'Cannot complete step: required documents are missing'
+        ], 422);
     }
 
-    public function markStepComplete($dealId, $stepKey)
+    public function markStepComplete($dealId, $stepKey, $user = null)
     {
-        $deal = Deal::findOrFail($dealId);
+        $user = $user ?: (request()->user() ?: auth()->user());
+        $deal = $this->getAuthorizedDeal($dealId, $user, true);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
+        }
 
         $stepProgress = [
             'contract_generation' => 20,
@@ -152,14 +232,14 @@ class DealController extends Controller
         ];
 
         $nextStep = $this->progressService->getNextStep($stepKey);
-        $progress = $stepProgress[$nextStep];
+        $progress = $stepProgress[$nextStep] ?? $deal->progress_percentage;
 
         $deal->update([
             'current_step' => $nextStep,
             'progress_percentage' => $progress,
             'status' => $nextStep === 'closed' ? 'closed' : $deal->status
         ]);
-        ActivityService::logStepCompleted($deal, $stepKey, auth()->user());
+        ActivityService::logStepCompleted($deal, $stepKey, $user);
         $this->sendStepCompletionNotifications($deal, $stepKey);
 
         return response()->json([
@@ -176,11 +256,26 @@ class DealController extends Controller
 
     public function get_activity_details(Request $request)
     {
+        $user = $request->user() ?: auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
         $query = Activity::with(['user', 'deal', 'document'])
             ->orderBy('created_at', 'desc');
 
         if ($request->has('deal_id')) {
-            $query->where('deal_id', $request->deal_id);
+            $deal = $this->getAuthorizedDeal($request->deal_id, $user, false);
+            if (!$deal) {
+                return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
+            }
+            $query->where('deal_id', $deal->id);
+        } elseif (!in_array($user->role_id, [1, 2])) {
+            $query->whereHas('deal', function ($q) use ($user) {
+                $q->where('agent_id', $user->id)
+                  ->orWhere('buyer_id', $user->id)
+                  ->orWhere('seller_id', $user->id);
+            });
         }
 
         if ($request->has('type')) {
@@ -196,8 +291,19 @@ class DealController extends Controller
         ]);
     }
 
-    public function forDeal(Deal $deal)
+    public function forDeal(Request $request, Deal $deal)
     {
+        $user = $request->user() ?: auth()->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
+        }
+
+        if (!in_array($user->role_id, [1, 2])) {
+            if ($deal->agent_id !== $user->id && $deal->buyer_id !== $user->id && $deal->seller_id !== $user->id) {
+                return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+            }
+        }
+
         $activities = Activity::with(['user', 'document'])
             ->where('deal_id', $deal->id)
             ->orderBy('created_at', 'desc')
@@ -213,8 +319,14 @@ class DealController extends Controller
 
     public function update_deal(Request $request, $deal_id)
     {
-        if (!in_array($request->user()->role_id, [3])) {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $deal = $this->getAuthorizedDeal($deal_id, $user, true);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
         }
 
         $request->validate([
@@ -224,7 +336,6 @@ class DealController extends Controller
             'priority' => 'sometimes|in:low,medium,high',
         ]);
 
-        $deal = Deal::findOrFail($deal_id);
         if ($request->has('progress')) {
             $deal->progress_percentage = $request->progress;
         }
@@ -243,14 +354,25 @@ class DealController extends Controller
 
     public function add_deadline_extension(Request $request, $deal_id)
     {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3])) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $deal = $this->getAuthorizedDeal($deal_id, $user, true);
+        if (!$deal) {
+            return response()->json([
+                "success" => false,
+                "message" => "Unauthorized: You are not authorized to extend deadlines for this deal"
+            ], 403);
+        }
+
         $request->validate([
             'days' => 'required|integer|min:1|max:30',
             'reason' => 'required|string|min:5'
         ]);
 
         try {
-            $deal = Deal::findOrFail($deal_id);
-
             $currentDeadline = $this->progressService->getStepDeadline(
                 $deal->current_step,
                 $deal->accepted_date,
@@ -269,9 +391,8 @@ class DealController extends Controller
             $deal->deadline_status = 'extended';
             $deal->save();
 
-            $this->activity_service->store_deadExtension_record($deal->id, auth()->id(), $request->days, $request->reason, 'deadline', $currentDeadline, $newDeadline->format('Y-m-d'));
-            ActivityService::logDeadlineExtension($deal, $request->days, $request->reason, auth()->user());
-
+            $this->activity_service->store_deadExtension_record($deal->id, $user->id, $request->days, $request->reason, 'deadline', $currentDeadline, $newDeadline->format('Y-m-d'));
+            ActivityService::logDeadlineExtension($deal, $request->days, $request->reason, $user);
 
             return response()->json([
                 "success" => true,
@@ -289,11 +410,15 @@ class DealController extends Controller
 
     public function update_earnest_deal(Request $request, $deal_id)
     {
-        if (!in_array($request->user()->role_id, [3])) {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
         }
 
-        $deal = Deal::findOrFail($deal_id);
+        $deal = $this->getAuthorizedDeal($deal_id, $user, true);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
+        }
 
         $request->validate([
             'earnest_amount' => 'required|numeric|min:0',
@@ -319,15 +444,20 @@ class DealController extends Controller
 
     public function update_documents_details(Request $request, $deal_id)
     {
-        if (!in_array($request->user()->role_id, [3])) {
+        $user = $request->user() ?: auth()->user();
+        if (!$user || !in_array($user->role_id, [1, 2, 3])) {
             return response()->json(['message' => 'Forbidden, You are not Authorized'], 403);
+        }
+
+        $deal = $this->getAuthorizedDeal($deal_id, $user, true);
+        if (!$deal) {
+            return response()->json(['message' => 'Forbidden, You are not Authorized for this deal'], 403);
         }
 
         $request->validate([
             'document_types' => 'required|array',
             'notes' => 'nullable|array'
         ]);
-        $deal = Deal::findOrFail($deal_id);
         $dealDocuments = DealDocument::where('deal_id', $deal->id)->get();
 
         $existingDocTypes = $dealDocuments->pluck('document_type')->toArray();
@@ -344,7 +474,7 @@ class DealController extends Controller
             DealDocument::create([
                 'deal_id' => $deal->id,
                 'property_offer_id' => $deal->offer_id,
-                'uploaded_by' => auth()->id(),
+                'uploaded_by' => $user->id,
                 'document_type' => $docType,
                 'category' => $this->progressService->getCategoryFromDocumentType($docType),
                 'notes' => $noteTxt,
