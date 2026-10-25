@@ -4,15 +4,18 @@ namespace App\Http\Controllers;
 
 use App\Models\BetaFeedback;
 use App\Services\CloudinaryService;
+use App\Services\MediaUploadService;
 use Illuminate\Http\Request;
 
 class BetaFeedbackController extends Controller
 {
-    protected CloudinaryService $cloudinaryService;
+    protected MediaUploadService $mediaService;
+    protected $cloudinaryService;
 
-    public function __construct(CloudinaryService $cloudinaryService)
+    public function __construct(MediaUploadService $mediaService)
     {
-        $this->cloudinaryService = $cloudinaryService;
+        $this->mediaService = $mediaService;
+        $this->cloudinaryService = $mediaService;
     }
 
     public function store(Request $request)
@@ -28,7 +31,7 @@ class BetaFeedbackController extends Controller
         ]);
 
         if ($request->hasFile('screenshot')) {
-            $uploadedScreenshot = $this->cloudinaryService->uploadFeedbackScreenshot($request->file('screenshot'));
+            $uploadedScreenshot = $this->mediaService->uploadFeedbackScreenshot($request->file('screenshot'));
             $validated['screenshot_url'] = $uploadedScreenshot['secure_url'];
             $validated['screenshot_public_id'] = $uploadedScreenshot['public_id'];
         }

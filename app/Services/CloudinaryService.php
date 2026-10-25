@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Contracts\MediaStorageInterface;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
 
-class CloudinaryService
+class CloudinaryService implements MediaStorageInterface
 {
     public function uploadPropertyImage(UploadedFile $image, string $slug, int $index): array
     {
@@ -22,6 +24,40 @@ class CloudinaryService
     public function uploadFeedbackScreenshot(UploadedFile $image): array
     {
         return $this->uploadImage($image, 'feedback-screenshot-'.Str::random(12), 'beta-feedback');
+    }
+
+    public function delete(string $publicId): bool
+    {
+        $cloudName = config('cloudinary.cloud_name');
+        $apiKey = config('cloudinary.api_key');
+        $apiSecret = config('cloudinary.api_secret');
+
+        if (!$cloudName || !$apiKey || !$apiSecret) {
+            return false;
+        }
+
+        try {
+            $timestamp = time();
+            $params = [
+                'public_id' => $publicId,
+                'timestamp' => $timestamp,
+            ];
+            ksort($params);
+            $signaturePayload = collect($params)
+                ->map(fn ($value, $key) => $key.'='.$value)
+                ->implode('&');
+
+            $response = Http::timeout(30)->asForm()->post("https://api.cloudinary.com/v1_1/{$cloudName}/image/destroy", [
+                ...$params,
+                'api_key' => $apiKey,
+                'signature' => sha1($signaturePayload.$apiSecret),
+            ]);
+
+            return $response->successful() && $response->json('result') === 'ok';
+        } catch (\Throwable $e) {
+            Log::warning('Cloudinary delete failed: ' . $e->getMessage(), ['public_id' => $publicId]);
+            return false;
+        }
     }
 
     private function uploadImage(UploadedFile $image, string $publicId, ?string $subFolder = null): array
@@ -52,7 +88,7 @@ class CloudinaryService
             ->map(fn ($value, $key) => $key.'='.$value)
             ->implode('&');
 
-        $response = Http::attach(
+        $response = Http::timeout(30)->attach(
             'file',
             file_get_contents($image->getRealPath()),
             $image->getClientOriginalName()

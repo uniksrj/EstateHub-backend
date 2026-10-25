@@ -8,6 +8,7 @@ use App\Models\PropertyOffer;
 use App\Models\PropertyView;
 use App\Models\UserActivity;
 use App\Services\CloudinaryService;
+use App\Services\MediaUploadService;
 use App\Services\PropertyAnalyticsService;
 use App\Services\UserMetricsService;
 use Carbon\Carbon;
@@ -18,16 +19,18 @@ use Illuminate\Validation\Rule;
 class Property_controller extends Controller
 {
     protected PropertyAnalyticsService $propertyService;
-    protected CloudinaryService $cloudinaryService;
+    protected MediaUploadService $mediaService;
+    protected $cloudinaryService;
     protected $userActivityService;
     public function __construct(
         PropertyAnalyticsService $propertyService,
         UserMetricsService $userActivityService,
-        CloudinaryService $cloudinaryService
+        MediaUploadService $mediaService
     ) {
         $this->propertyService = $propertyService;
         $this->userActivityService = $userActivityService;
-        $this->cloudinaryService = $cloudinaryService;
+        $this->mediaService = $mediaService;
+        $this->cloudinaryService = $mediaService;
     }
 
     public function index()
@@ -82,7 +85,7 @@ class Property_controller extends Controller
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $uploadedImage = $this->cloudinaryService->uploadPropertyImage($image, $property->slug, $index);
+                    $uploadedImage = $this->mediaService->uploadPropertyImage($image, $property->slug, $index);
                     PropertyImage::create([
                         'property_id' => $property->id,
                         'image_path' => $uploadedImage['secure_url'],
@@ -241,7 +244,7 @@ class Property_controller extends Controller
 
             if ($request->hasFile('images')) {
                 foreach ($request->file('images') as $index => $image) {
-                    $uploadedImage = $this->cloudinaryService->uploadPropertyImage($image, $property->slug, $index);
+                    $uploadedImage = $this->mediaService->uploadPropertyImage($image, $property->slug, $index);
                     PropertyImage::create([
                         'property_id' => $property->id,
                         'image_path' => $uploadedImage['secure_url'],

@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Contracts\MediaStorageInterface;
+use App\Services\MediaUploadService;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -16,7 +18,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(MediaUploadService::class);
+        $this->app->bind(MediaStorageInterface::class, MediaUploadService::class);
     }
 
     /**

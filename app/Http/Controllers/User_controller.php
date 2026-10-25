@@ -9,16 +9,19 @@ use App\Models\Favorite;
 use App\Models\PropertyAlert;
 use App\Models\PropertyTours;
 use App\Services\CloudinaryService;
+use App\Services\MediaUploadService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class User_controller extends Controller
 {
-    protected CloudinaryService $cloudinaryService;
+    protected MediaUploadService $mediaService;
+    protected $cloudinaryService;
 
-    public function __construct(CloudinaryService $cloudinaryService)
+    public function __construct(MediaUploadService $mediaService)
     {
-        $this->cloudinaryService = $cloudinaryService;
+        $this->mediaService = $mediaService;
+        $this->cloudinaryService = $mediaService;
     }
 
     public function get_user_profile_details(Request $request)
@@ -58,7 +61,7 @@ class User_controller extends Controller
         ]);
 
         if ($request->hasFile('avatar')) {
-            $uploadedAvatar = $this->cloudinaryService->uploadUserAvatar($request->file('avatar'), $user->id);
+            $uploadedAvatar = $this->mediaService->uploadUserAvatar($request->file('avatar'), $user->id);
             $validated['avatar'] = $uploadedAvatar['secure_url'];
         }
 
