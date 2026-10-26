@@ -190,21 +190,22 @@ class Common_setup extends Controller
         $inquiry = Inquiry::findOrFail($inquiryId);
 
         // Check if user has permission to respond to this inquiry
-        if ($user->role_id == 6) { // Seller
-            // Verify seller owns the property
-            if ($inquiry->property->agent_id != $user->id) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
-        } elseif ($user->role_id == 5) { // Buyer
-            // Verify buyer made this inquiry
-            if ($inquiry->user_id != $user->id) {
-                return response()->json(['error' => 'Unauthorized'], 403);
-            }
+        $isAuthorized = false;
+        if (in_array($user->role_id, [3, 6]) && $inquiry->property && $inquiry->property->agent_id == $user->id) {
+            $isAuthorized = true;
+        } elseif ($user->role_id == 5 && $inquiry->user_id == $user->id) {
+            $isAuthorized = true;
+        } elseif (in_array($user->role_id, [1, 2])) {
+            $isAuthorized = true; // Admin override
+        }
+
+        if (!$isAuthorized) {
+            return response()->json(['error' => 'Unauthorized'], 403);
         }
 
         $return_response = DB::transaction(function () use ($request, $inquiryId, $user, $inquiry) {
             // Determine sender type based on user role
-            $senderType = ($user->role_id == 6) ? 'seller' : 'buyer';
+            $senderType = in_array($user->role_id, [1, 2, 3, 6]) ? 'seller' : 'buyer';
 
             // Create response
             $response = InquiryResponse::create([
@@ -221,7 +222,7 @@ class Common_setup extends Controller
                     'status' => $newStatus,
                     'responded_at' => now(),
                     'responded_by' => $user->id,
-                    'response_notes' => 'Seller responded to inquiry'
+                    'response_notes' => (in_array($user->role_id, [1, 2]) ? 'Admin' : ($user->role_id == 3 ? 'Agent' : 'Seller')) . ' responded to inquiry'
                 ]);
             } else {
                 // Buyer is responding - update status accordingly
@@ -271,10 +272,16 @@ class Common_setup extends Controller
         ])->findOrFail($inquiryId);
 
         // Authorization check
-        if ($userType == 6 && $inquiry->property->user_id != $user->id) {
-            return response()->json(['error' => 'Unauthorized'], 403);
+        $isAuthorized = false;
+        if (in_array($userType, [3, 6]) && $inquiry->property && $inquiry->property->agent_id == $user->id) {
+            $isAuthorized = true;
+        } elseif ($userType == 5 && $inquiry->user_id == $user->id) {
+            $isAuthorized = true;
+        } elseif (in_array($userType, [1, 2])) {
+            $isAuthorized = true; // Admin override
         }
-        if ($userType == 5 && $inquiry->user_id != $user->id) {
+
+        if (!$isAuthorized) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
