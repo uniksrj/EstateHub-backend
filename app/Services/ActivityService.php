@@ -167,7 +167,7 @@ class ActivityService
             'document_request' => ['icon' => 'Download', 'color' => 'text-amber-500'],
             'step_completed' => ['icon' => 'CheckCircle2', 'color' => 'text-green-500'],
             'step_started' => ['icon' => 'Clock', 'color' => 'text-blue-500'],
-            'payment_received' => ['icon' => 'DollarSign', 'color' => 'text-green-500'],
+            'payment_received' => ['icon' => 'IndianRupee', 'color' => 'text-green-500'],
             'payment_due' => ['icon' => 'AlertCircle', 'color' => 'text-red-500'],
             'deadline_approaching' => ['icon' => 'AlertCircle', 'color' => 'text-amber-500'],
         ];
