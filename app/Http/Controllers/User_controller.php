@@ -256,11 +256,21 @@ class User_controller extends Controller
 
         // Role-based authorization
         $user = auth()->user();
-        if ($user->role_id == 5 && $schedule->buyer_id != $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-        if ($user->role_id == 3 && $schedule->agent_id != $user->id) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if ($user->role_id == 5) {
+            if ($schedule->buyer_id != $user->id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+            if (!in_array($validated['status'], ['cancelled', 'reschedule_requested'])) {
+                return response()->json(['message' => 'Buyers can only cancel or request reschedule.'], 403);
+            }
+        } elseif (in_array($user->role_id, [3, 6])) {
+            if ($schedule->agent_id != $user->id) {
+                return response()->json(['message' => 'Unauthorized'], 403);
+            }
+        } elseif (in_array($user->role_id, [1, 2])) {
+            // Admin override
+        } else {
+            return response()->json(['message' => 'Unauthorized role.'], 403);
         }
 
         if ($validated['status'] === 'rejected') {            
