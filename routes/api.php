@@ -126,8 +126,15 @@ Route::post('/reset-password', function (Request $request) {
         'password' => 'required|min:8|confirmed',
     ]);
 
+    $credentials = [
+        'token' => $request->token,
+        'email' => trim(strtolower($request->email)),
+        'password' => $request->password,
+        'password_confirmation' => $request->password_confirmation,
+    ];
+
     $status = Password::reset(
-        $request->only('email', 'password', 'password_confirmation', 'token'),
+        $credentials,
         function ($user, $password) {
             $user->forceFill([
                 'password' => Hash::make($password)
