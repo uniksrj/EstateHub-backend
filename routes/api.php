@@ -92,14 +92,16 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
 $sendPasswordResetLink = function (Request $request) {
     $request->validate(['email' => 'required|email']);
 
+    $credentials = [
+        'email' => trim(strtolower($request->email)),
+    ];
+
     try {
-        $status = Password::sendResetLink(
-            $request->only('email')
-        );
+        $status = Password::sendResetLink($credentials);
 
         return $status === Password::RESET_LINK_SENT
             ? response()->json(['message' => 'If an account exists for this email, a password reset link has been sent.'], 200)
-            : response()->json(['message' => 'Unable to send password reset link right now. Please try again later.'], 400);
+            : response()->json(['message' => __($status)], 400);
     } catch (\Throwable $e) {
         \Illuminate\Support\Facades\Log::error('Password reset email error: ' . $e->getMessage(), [
             'email' => $request->email,
