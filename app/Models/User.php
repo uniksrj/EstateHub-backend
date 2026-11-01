@@ -138,6 +138,26 @@ class User extends Authenticatable
         return $this->hasRole('seller');
     }
 
+    public function isInvestor()
+    {
+        return $this->hasRole('investor') || (int) $this->role_id === 7;
+    }
+
+    public function investmentProfile()
+    {
+        return $this->hasOne(InvestmentProfile::class);
+    }
+
+    public function investmentWatchlists()
+    {
+        return $this->hasMany(InvestmentWatchlist::class);
+    }
+
+    public function portfolioProperties()
+    {
+        return $this->hasMany(PortfolioProperty::class);
+    }
+
     public function preferences()
     {
         return $this->hasOne(UserPreference::class);

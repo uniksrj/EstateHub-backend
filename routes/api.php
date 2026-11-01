@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth;
 use App\Http\Controllers\BetaFeedbackController;
 use App\Http\Controllers\Common_setup;
 use App\Http\Controllers\DealController;
+use App\Http\Controllers\Investor\InvestorController;
 use App\Http\Controllers\Loan;
 use App\Http\Controllers\Property_controller;
 use App\Http\Controllers\User_controller;
@@ -215,3 +216,25 @@ Route::prefix('agent')->middleware(['auth:api'])->group(function () {
     Route::post('/update_documents_details/{deal_id}', [DealController::class, 'update_documents_details']);
 });
 /** Agent Route */
+
+Route::middleware(['auth:sanctum', 'investor.access'])
+    ->prefix('investor')
+    ->group(function () {
+        Route::get('/dashboard',              [InvestorController::class, 'dashboard']);
+        Route::get('/discover',               [InvestorController::class, 'discover']);
+        Route::get('/analyze/{property}',     [InvestorController::class, 'analyze']);
+        Route::post('/compare',               [InvestorController::class, 'compare']);
+
+        Route::get('/portfolio',              [InvestorController::class, 'portfolio']);
+        Route::get('/market',                 [InvestorController::class, 'market']);
+
+        Route::get('/watchlist',              [InvestorController::class, 'watchlist']);
+        Route::post('/watchlist',             [InvestorController::class, 'storeWatchlist']);
+        Route::delete('/watchlist/{item}',    [InvestorController::class, 'destroyWatchlist']);
+
+        Route::get('/profile',                [InvestorController::class, 'profile']);
+        Route::put('/profile',                [InvestorController::class, 'updateProfile']);
+
+        Route::get('/reports',                [InvestorController::class, 'reports']);
+        Route::post('/reports/export',        [InvestorController::class, 'exportReport']);
+    });

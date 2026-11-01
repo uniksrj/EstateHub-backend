@@ -374,4 +374,32 @@ class Property extends Model
     {
         return $this->hasMany(PropertyPurchase::class);
     }
+
+    public function investmentMetric()
+    {
+        return $this->hasOne(PropertyInvestmentMetric::class);
+    }
+
+    public function investmentWatchlists()
+    {
+        return $this->hasMany(InvestmentWatchlist::class);
+    }
+
+    public function portfolioProperties()
+    {
+        return $this->hasMany(PortfolioProperty::class);
+    }
+
+    protected static function booted(): void
+{
+    static::saved(function (Property $property) {
+        \App\Jobs\RecalculatePropertyInvestmentMetrics::dispatch($property)
+            ->onQueue('default');
+
+        if ($property->wasRecentlyCreated) {
+            \App\Jobs\MatchInvestmentsToProfiles::dispatch($property)
+                ->onQueue('notifications');
+        }
+    });
+}
 }
