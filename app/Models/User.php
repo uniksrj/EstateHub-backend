@@ -153,6 +153,11 @@ class User extends Authenticatable
         return $this->hasMany(InvestmentWatchlist::class);
     }
 
+    public function investmentWatchlist()
+    {
+        return $this->hasMany(InvestmentWatchlist::class);
+    }
+
     public function portfolioProperties()
     {
         return $this->hasMany(PortfolioProperty::class);

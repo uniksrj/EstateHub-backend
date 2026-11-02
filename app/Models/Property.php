@@ -47,7 +47,9 @@ class Property extends Model
         'has_air_conditioning',
         'has_heating',
         'agent_id',
-        'property_code'
+        'property_code',
+        'is_investment_friendly',
+        'locality'
     ];
 
     protected $casts = [
@@ -68,11 +70,18 @@ class Property extends Model
         'has_security' => 'boolean',
         'has_air_conditioning' => 'boolean',
         'has_heating' => 'boolean',
+        'is_investment_friendly' => 'boolean',
     ];
 
     protected $appends = [
         'is_boost_active',
+        'area_sqft',
     ];
+
+    public function getAreaSqftAttribute()
+    {
+        return $this->sq_ft;
+    }
 
     public function agent()
     {

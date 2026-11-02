@@ -514,7 +514,7 @@ class Common_setup extends Controller
 
     public function get_offers()
     {
-        if (!in_array(auth()->user()->role_id, [5, 3, 6])) {
+        if (!in_array(auth()->user()->role_id, [5, 3, 6, 7])) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
@@ -527,10 +527,11 @@ class Common_setup extends Controller
             'property.agent:id,name,email,phone,avatar,bio',
             'property.images',
             'buyer:id,name,email,phone',
-            'loanApplications:id,offer_id,loan_amount,loan_term,interest_rate,status,created_at'
+            'loanApplications:id,offer_id,loan_amount,loan_term,interest_rate,status,created_at',
+            'deal'
         ]);
 
-        if ($userRole === 5) {
+        if (in_array($userRole, [5, 7])) {
             $offers->where('buyer_id', $userId);
         } elseif (in_array($userRole, [3, 6])) {
             $offers->whereHas('property', function ($q) use ($userId) {

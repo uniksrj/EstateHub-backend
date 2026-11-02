@@ -56,6 +56,11 @@ class PropertyOffer extends Model
     public function images()
     {
         return $this->hasMany(PropertyImage::class, 'property_id');
+    }
+
+    public function deal()
+    {
+        return $this->hasOne(Deal::class, 'offer_id');
     }    
 
     /**

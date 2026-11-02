@@ -16,7 +16,7 @@ class MarketAnalyticsService
         $stats = $query->selectRaw('
             COUNT(*) as active_listings,
             AVG(price) as median_price,
-            AVG(area_sqft) as median_area,
+            AVG(sq_ft) as median_area,
             AVG(DATEDIFF(NOW(), created_at)) as avg_days
         ')->first();
 
@@ -52,7 +52,7 @@ class MarketAnalyticsService
     {
         $rows = Property::query()
             ->select('city', 'locality',
-                DB::raw('AVG(price / NULLIF(area_sqft,0)) as median_price_per_sqft'),
+                DB::raw('AVG(price / NULLIF(sq_ft,0)) as median_price_per_sqft'),
                 DB::raw('COUNT(*) as active_listings'),
                 DB::raw('AVG(DATEDIFF(NOW(), created_at)) as avg_days'))
             ->whereNotNull('city')
